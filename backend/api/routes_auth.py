@@ -1,7 +1,13 @@
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 router = APIRouter()
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
 @router.post("/login")
-async def login(username: str, password: str):
-    return {"message": f"User {username} logged in successfully"}
+async def login(payload: LoginRequest):
+    # placeholder: integrate real auth (Supabase) later
+    return {"message": f"User {payload.username} logged in successfully"}
