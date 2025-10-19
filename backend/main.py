@@ -14,3 +14,4 @@ app.include_router(routes_optimization.router, prefix="/optimization", tags=["Op
 @app.get("/")
 def root():
     return {"message": "Welcome to CogniClause Backend"}
+    

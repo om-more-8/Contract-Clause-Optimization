@@ -1,23 +1,32 @@
 import fitz  # PyMuPDF
+from docx import Document
 
-async def extract_text(file) -> str:
+async def extract_text(file):
     """
-    Extract text from an uploaded PDF file (UploadFile).
-    We open the PDF from bytes to avoid writing temp files.
+    Extract text from uploaded PDF or DOCX files.
     """
-    content = await file.read()  # bytes
+    content = await file.read()
+    filename = file.filename.lower()
 
-    # Try opening from bytes (recommended)
-    try:
-        doc = fitz.open(stream=content, filetype="pdf")
-    except Exception:
-        # fallback: write to temp.pdf (rare)
-        with open("temp.pdf", "wb") as f:
+    # --- PDF handling ---
+    if filename.endswith(".pdf"):
+        try:
+            doc = fitz.open(stream=content, filetype="pdf")
+        except Exception:
+            with open("temp.pdf", "wb") as f:
+                f.write(content)
+            doc = fitz.open("temp.pdf")
+
+        text = "\n".join(page.get_text() for page in doc)
+        doc.close()
+        return text.strip()
+
+    # --- DOCX handling ---
+    elif filename.endswith(".docx"):
+        with open("temp.docx", "wb") as f:
             f.write(content)
-        doc = fitz.open("temp.pdf")
+        doc = Document("temp.docx")
+        return "\n".join(p.text for p in doc.paragraphs).strip()
 
-    text_pages = []
-    for page in doc:
-        text_pages.append(page.get_text())
-    doc.close()
-    return "\n".join(text_pages).strip()
+    else:
+        raise ValueError("Unsupported file type")

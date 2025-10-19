@@ -1,28 +1,31 @@
-from models.contract import Contract
-from typing import Dict, List
+from database.supabase_client import supabase
 
-def evaluate_contract(contract: Contract) -> Dict:
+def evaluate_contract(contract):
     """
-    Simple rule-based evaluator for now.
-    Returns a dict with id/title/risk_score and risky_phrases.
+    Evaluate contract clauses for potential risks and store in Supabase.
     """
-    content = (contract.content or "").lower()
-    risky_phrases = [
-        "terminate", "termination", "penalty", "liability",
-        "indemnify", "governing law", "jurisdiction", "breach"
-    ]
-    found = [p for p in risky_phrases if p in content]
-
-    # simple scoring: number found / total phrases -> normalized 0..1
-    score = 0.0
-    if risky_phrases:
-        score = round(min(len(found) / len(risky_phrases), 1.0), 3)
-
-    contract.risk_score = score
-
-    return {
-        "id": contract.id,
-        "title": contract.title,
-        "risk_score": contract.risk_score,
-        "risky_phrases": found,
+    text = contract.text.lower()
+    risk_terms = {
+        "termination": 1.5,
+        "penalty": 2.0,
+        "liability": 2.5,
+        "confidentiality": 1.0,
+        "arbitration": 1.0,
+        "indemnity": 3.0
     }
+
+    risk_score = sum(weight for term, weight in risk_terms.items() if term in text)
+
+    # Store result in Supabase
+    data = {
+        "filename": contract.filename,
+        "content": contract.text,
+        "risk_score": risk_score
+    }
+
+    try:
+        supabase.table("contracts").insert(data).execute()
+    except Exception as e:
+        print("⚠️ Supabase insert failed:", e)
+
+    return {"risk_score": risk_score}
