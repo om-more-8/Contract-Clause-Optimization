@@ -1,31 +1,47 @@
-from database.supabase_client import supabase
+from sentence_transformers import SentenceTransformer, util
+import json
+import os
+
+# Load model only once
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+# Load your reference dataset
+DATA_PATH = os.path.join(os.path.dirname(__file__), "../data/clauses.json")
+with open(DATA_PATH, "r") as f:
+    reference_clauses = json.load(f)
 
 def evaluate_contract(contract):
-    """
-    Evaluate contract clauses for potential risks and store in Supabase.
-    """
-    text = contract.text.lower()
-    risk_terms = {
-        "termination": 1.5,
-        "penalty": 2.0,
-        "liability": 2.5,
-        "confidentiality": 1.0,
-        "arbitration": 1.0,
-        "indemnity": 3.0
+    text = contract.text  # assuming your Pydantic model has 'content'
+    
+    # Step 1: Split contract text into sentences (basic version)
+    sentences = [s.strip() for s in text.split('.') if len(s.strip()) > 10]
+    
+    # Step 2: Encode input and reference clauses
+    input_embeddings = model.encode(sentences, convert_to_tensor=True)
+    reference_embeddings = model.encode([r["clause"] for r in reference_clauses], convert_to_tensor=True)
+    
+    # Step 3: Compare each contract clause to reference clauses
+    total_risk = 0
+    matched_clauses = []
+    
+    for i, sentence in enumerate(sentences):
+        cos_scores = util.cos_sim(input_embeddings[i], reference_embeddings)
+        best_match_idx = int(cos_scores.argmax())
+        best_score = float(cos_scores.max())
+        
+        matched = reference_clauses[best_match_idx]
+        risk_value = {"Low": 1, "Medium": 2, "High": 3}[matched["risk_level"]]
+        total_risk += risk_value
+        
+        matched_clauses.append({
+            "sentence": sentence,
+            "matched_category": matched["category"],
+            "risk_level": matched["risk_level"],
+            "similarity_score": round(best_score, 3)
+        })
+    
+    avg_risk_score = total_risk / len(sentences) if sentences else 0
+    return {
+        "average_risk_score": round(avg_risk_score, 2),
+        "details": matched_clauses
     }
-
-    risk_score = sum(weight for term, weight in risk_terms.items() if term in text)
-
-    # Store result in Supabase
-    data = {
-        "filename": contract.filename,
-        "content": contract.text,
-        "risk_score": risk_score
-    }
-
-    try:
-        supabase.table("contracts").insert(data).execute()
-    except Exception as e:
-        print("⚠️ Supabase insert failed:", e)
-
-    return {"risk_score": risk_score}
