@@ -9,6 +9,6 @@ key = os.getenv("SUPABASE_KEY")
 supabase = create_client(url, key)
 
 # Test insert
-data = {"filename": "Test Contract", "text": "Sample text", "risk_score": 3.5}
+data = {"name": "Test Contract", "text": "Sample text", "risk_score": 3.5}
 response = supabase.table("contracts").insert(data).execute()
 print(response)
