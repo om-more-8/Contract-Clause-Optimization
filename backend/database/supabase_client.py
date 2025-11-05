@@ -1,14 +1,15 @@
-from supabase import create_client
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-url = os.getenv("SUPABASE_URL")
-key = os.getenv("SUPABASE_KEY")
-supabase = create_client(url, key)
-
-# Test insert
-data = {"name": "Test Contract", "text": "Sample text", "risk_score": 3.5}
-response = supabase.table("contracts").insert(data).execute()
-print(response)
+supabase = None
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        from supabase import create_client
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        print("✅ Supabase client configured")
+    except Exception as e:
+        print("⚠️ Could not initialize Supabase client:", e)
+else:
+    print("⚠️ SUPABASE_URL or SUPABASE_KEY not set — Supabase disabled")

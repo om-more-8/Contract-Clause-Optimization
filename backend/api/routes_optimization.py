@@ -4,5 +4,5 @@ router = APIRouter()
 
 @router.post("/")
 async def optimize_contract(contract_id: int):
-    # placeholder: optimization logic will go here
+    # placeholder
     return {"contract_id": contract_id, "optimized": True}
