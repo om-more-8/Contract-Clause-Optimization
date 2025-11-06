@@ -41,12 +41,13 @@ async def evaluate(request: Request):
         if supabase:
             insert_payload = {
                 "name": payload.get("name") if isinstance(payload, dict) else None,
-                "text": text,
+                "text": payload.text,
                 "risk_score": result.get("average_risk_score")
             }
             # Remove None values
             insert_payload = {k:v for k,v in insert_payload.items() if v is not None}
             supabase.table("contracts").insert(insert_payload).execute()
+            
     except Exception as e:
         # log but do not fail the request
         print("⚠️ Supabase insert failed:", e)
