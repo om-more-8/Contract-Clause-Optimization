@@ -1,61 +1,63 @@
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, UploadFile, File, HTTPException
 from services.clause_service import evaluate_contract
-from database.supabase_client import supabase  # may be None if not configured
+from services.parser_service import extract_text
+from database.supabase_client import supabase
 
 router = APIRouter()
 
+# --- Text Evaluation ---
 @router.post("/evaluate")
 async def evaluate(request: Request):
-    """
-    Accepts flexible payloads. Prefer keys: text, content, contract_text.
-    Returns evaluation result from clause_service.evaluate_contract(...)
-    """
     try:
         payload = await request.json()
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
-    # Resolve text from several possible keys
-    text = None
-    if isinstance(payload, dict):
-        for key in ("text", "content", "contract_text", "body"):
-            if key in payload and payload[key]:
-                if isinstance(payload[key], dict) and "text" in payload[key]:
-                    text = payload[key]["text"]
-                else:
-                    text = payload[key]
-                break
-    elif isinstance(payload, str):
-        text = payload
-
+    text = payload.get("text") or payload.get("content") or payload.get("contract_text")
     if not text:
-        raise HTTPException(status_code=422, detail="Request must include contract text under 'text'/'content'/'contract_text'")
+        raise HTTPException(status_code=422, detail="Missing 'text' or 'content' field")
 
-    try:
-        result = evaluate_contract(text)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Evaluation failed: {e}")
+    result = evaluate_contract(text)
 
-    # Try to insert into Supabase if available (non-blocking)
+    # ✅ Insert into Supabase
     try:
         if supabase:
             insert_payload = {
-                "name": payload.get("name") if isinstance(payload, dict) else None,
-                "text": payload.text,
-                "risk_score": result.get("average_risk_score")
+                "name": payload.get("name", "Manual Evaluation"),
+                "text": text,
+                "risk_score": result.get("average_risk_score"),
             }
-            # Remove None values
-            insert_payload = {k:v for k,v in insert_payload.items() if v is not None}
             supabase.table("contracts").insert(insert_payload).execute()
-            
     except Exception as e:
-        # log but do not fail the request
-        print("⚠️ Supabase insert failed:", e)
+        print("⚠️ Supabase insert failed (evaluate):", e)
 
     return result
 
 
+# --- PDF Upload & Evaluate ---
 @router.post("/upload")
-async def upload_contract(file: bytes):
-    # placeholder if you want to implement file uploads via UploadFile
-    return {"message": "upload endpoint placeholder"}
+async def upload_contract(file: UploadFile = File(...)):
+    filename = file.filename or "uploaded"
+    if not filename.lower().endswith((".pdf", ".doc", ".docx")):
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+
+    text = await extract_text(file)
+    result = evaluate_contract(text)
+
+    # ✅ Insert into Supabase
+    try:
+        if supabase:
+            insert_payload = {
+                "name": filename,
+                "text": text,
+                "risk_score": result.get("average_risk_score"),
+            }
+            supabase.table("contracts").insert(insert_payload).execute()
+    except Exception as e:
+        print("⚠️ Supabase insert failed (upload):", e)
+
+    return {
+        "filename": filename,
+        "extracted_text_preview": text[:500],
+        "analysis": result,
+    }

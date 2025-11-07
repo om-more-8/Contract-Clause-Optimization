@@ -1,12 +1,15 @@
 import React, { useState } from "react";
+import { motion } from "framer-motion";
 
 export default function ContractEvaluator() {
   const [text, setText] = useState("");
+  const [file, setFile] = useState(null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const handleSubmit = async (e) => {
+  // Handle text-based evaluation
+  const handleTextSubmit = async (e) => {
     e.preventDefault();
     if (!text.trim()) {
       setError("Please paste some contract text.");
@@ -24,38 +27,70 @@ export default function ContractEvaluator() {
         body: JSON.stringify({ text }),
       });
 
-      if (!res.ok) {
-        throw new Error(`Server error: ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
 
       const data = await res.json();
       setResult(data);
     } catch (err) {
-      setError(err.message);
+      console.error(err);
+      setError("Failed to fetch results. Check backend connection.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle PDF upload
+  const handleFileSubmit = async (e) => {
+    e.preventDefault();
+    if (!file) {
+      setError("Please select a PDF file.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("http://127.0.0.1:8000/contracts/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+
+      const data = await res.json();
+      setResult(data.analysis || data);
+    } catch (err) {
+      console.error(err);
+      setError("PDF upload failed. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-6 transition-all duration-300">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <label className="text-gray-700 font-semibold text-lg">
-          Paste Contract Text
-        </label>
+    <div className="bg-white p-6 rounded-xl shadow-md w-full max-w-3xl">
+      <h2 className="text-2xl font-semibold mb-4 text-blue-700">Contract Risk Evaluator</h2>
+
+      {/* ---------- Text Evaluation Section ---------- */}
+      <form onSubmit={handleTextSubmit} className="flex flex-col gap-4 mb-6">
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Enter your contract text here..."
-          className="w-full h-64 p-4 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400 resize-none"
+          placeholder="Paste your contract text here..."
+          className="w-full h-48 p-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
         />
-        <div className="flex justify-between items-center">
+        <div className="flex items-center gap-4">
           <button
             type="submit"
             disabled={loading}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 active:scale-95 transition disabled:bg-gray-400"
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400"
           >
-            {loading ? "Evaluating..." : "Evaluate Contract"}
+            {loading ? "Evaluating..." : "Evaluate Text"}
           </button>
           <button
             type="button"
@@ -63,80 +98,113 @@ export default function ContractEvaluator() {
               setText("");
               setResult(null);
               setError(null);
+              setFile(null);
             }}
-            className="border border-gray-300 px-5 py-2 rounded-lg hover:bg-gray-100 transition"
+            className="px-3 py-2 border rounded"
           >
             Clear
           </button>
         </div>
       </form>
 
-      {error && (
-        <div className="mt-4 text-red-600 font-medium bg-red-50 p-3 rounded-lg border border-red-200">
-          ⚠️ {error}
-        </div>
-      )}
+      {/* ---------- OR Divider ---------- */}
+      <div className="flex items-center my-4">
+        <div className="flex-grow border-t border-gray-300"></div>
+        <span className="mx-3 text-gray-500 text-sm">OR</span>
+        <div className="flex-grow border-t border-gray-300"></div>
+      </div>
 
+      {/* ---------- PDF Upload Section ---------- */}
+      <form onSubmit={handleFileSubmit} className="flex flex-col gap-4 mb-6">
+        <input
+          type="file"
+          accept=".pdf,.doc,.docx"
+          onChange={(e) => setFile(e.target.files[0])}
+          className="block w-full border rounded p-2"
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:bg-gray-400"
+        >
+          {loading ? "Analyzing..." : "Upload PDF & Evaluate"}
+        </button>
+      </form>
+
+      {/* ---------- Error ---------- */}
+      {error && <div className="text-red-500 mt-4 font-medium">{error}</div>}
+
+      {/* ---------- Results ---------- */}
       {result && (
-        <div className="mt-6 bg-gray-50 p-6 rounded-xl border border-gray-200">
-          <h2 className="text-xl font-semibold mb-4 text-blue-800">
-            🧾 Evaluation Result
-          </h2>
-          <p className="text-gray-700 mb-4">
-            <strong>Average Risk Score:</strong>{" "}
-            <span
-              className={`font-bold ${
-                result.average_risk_score > 2
-                  ? "text-red-600"
-                  : result.average_risk_score > 1
-                  ? "text-yellow-600"
-                  : "text-green-600"
-              }`}
-            >
-              {result.average_risk_score}
-            </span>
-          </p>
+        <div className="mt-6">
+          <div className="bg-gray-50 p-6 rounded-xl shadow-md border">
 
-          <div className="space-y-3">
-            {result.details && result.details.length ? (
-              result.details.map((d, i) => (
-                <div
-                  key={i}
-                  className="p-4 rounded-lg bg-white border hover:shadow transition"
-                >
-                  <p>
-                    <strong>Clause:</strong>{" "}
-                    <span className="text-gray-700">{d.sentence}</span>
-                  </p>
-                  <p>
-                    <strong>Category:</strong>{" "}
-                    <span className="text-blue-600">{d.matched_category}</span>
-                  </p>
-                  <p>
-                    <strong>Risk Level:</strong>{" "}
-                    <span
-                      className={`font-semibold ${
-                        d.risk_level === "High"
-                          ? "text-red-600"
-                          : d.risk_level === "Medium"
-                          ? "text-yellow-600"
-                          : "text-green-600"
-                      }`}
-                    >
-                      {d.risk_level}
-                    </span>
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Similarity: {d.similarity_score}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <div className="text-gray-500">No clause matches found.</div>
-            )}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="mt-6"
+            >
+              {/* Risk Summary */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-lg font-semibold">
+                Average Risk Score:{" "}
+                <span className="font-bold">{result.average_risk_score}</span>
+              </div>
+
+              {/* Dynamic Risk Badge */}
+              <div
+                className={`px-4 py-2 rounded-full text-white font-semibold ${
+                  result.risk_level === "Low"
+                    ? "bg-green-500"
+                    : result.risk_level === "Medium"
+                    ? "bg-yellow-500"
+                    : "bg-red-500"
+                }`}
+              >
+                {result.risk_level} Risk
+              </div>
+            </div>
+            </motion.div>
+
+            {/* Detailed Breakdown */}
+            <div className="mt-3 space-y-3">
+              {result.details && result.details.length ? (
+                result.details.map((d, i) => (
+                  <div key={i} className="border p-3 rounded bg-white hover:shadow">
+                    <div>
+                      <strong>Sentence:</strong> {d.sentence}
+                    </div>
+                    <div>
+                      <strong>Category:</strong> {d.matched_category}
+                    </div>
+                    <div>
+                      <strong>Risk Level:</strong>{" "}
+                      <span
+                        className={`font-semibold ${
+                          d.risk_level === "Low"
+                            ? "text-green-600"
+                            : d.risk_level === "Medium"
+                            ? "text-yellow-600"
+                            : "text-red-600"
+                        }`}
+                      >
+                        {d.risk_level}
+                      </span>
+                    </div>
+                    <div>
+                      <strong>Similarity:</strong> {d.similarity_score}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div>No details returned.</div>
+              )}
+            </div>
           </div>
         </div>
       )}
+
     </div>
   );
 }

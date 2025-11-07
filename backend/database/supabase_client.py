@@ -1,15 +1,20 @@
 import os
+from supabase import create_client, Client
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-supabase = None
-if SUPABASE_URL and SUPABASE_KEY:
-    try:
-        from supabase import create_client
-        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        print("✅ Supabase client configured")
-    except Exception as e:
-        print("⚠️ Could not initialize Supabase client:", e)
-else:
+supabase: Client = None
+
+if not SUPABASE_URL or not SUPABASE_KEY:
     print("⚠️ SUPABASE_URL or SUPABASE_KEY not set — Supabase disabled")
+else:
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        print("✅ Supabase client initialized successfully")
+    except Exception as e:
+        print("❌ Failed to initialize Supabase client:", e)

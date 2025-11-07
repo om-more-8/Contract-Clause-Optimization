@@ -115,5 +115,19 @@ def evaluate_contract(contract_or_text):
                 })
                 total_risk_value += 1
 
-    avg = (total_risk_value / len(matched_clauses)) if matched_clauses else 0
-    return {"average_risk_score": round(avg,2), "details": matched_clauses}
+    avg_risk_score = total_risk_value / len(sentences) if sentences else 0
+
+    # ✅ Determine qualitative risk level
+    if avg_risk_score <= 1.5:
+        risk_level = "Low"
+    elif avg_risk_score <= 2.3:
+        risk_level = "Medium"
+    else:
+        risk_level = "High"
+
+    return {
+        "average_risk_score": round(avg_risk_score, 2),
+        "risk_level": risk_level,
+        "details": matched_clauses
+    }
+
