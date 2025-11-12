@@ -1,1 +1,0 @@
-backend/data/legal_clauses.csv filter=lfs diff=lfs merge=lfs -text
