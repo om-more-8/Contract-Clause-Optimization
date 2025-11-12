@@ -20,6 +20,12 @@ export default function ContractEvaluator() {
     setError(null);
     setResult(null);
 
+    const getRiskLevel = (score) => {
+    if (score < 1.5) return { label: "Low", color: "bg-green-200 text-green-800" };
+    if (score < 2.5) return { label: "Medium", color: "bg-yellow-200 text-yellow-800" };
+    return { label: "High", color: "bg-red-200 text-red-800" };
+    };
+
     try {
       const res = await fetch("http://127.0.0.1:8000/contracts/evaluate", {
         method: "POST",
@@ -71,6 +77,9 @@ export default function ContractEvaluator() {
       setLoading(false);
     }
   };
+
+  
+
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-md w-full max-w-3xl">
@@ -138,7 +147,6 @@ export default function ContractEvaluator() {
       {result && (
         <div className="mt-6">
           <div className="bg-gray-50 p-6 rounded-xl shadow-md border">
-
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -146,25 +154,34 @@ export default function ContractEvaluator() {
               className="mt-6"
             >
               {/* Risk Summary */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-lg font-semibold">
-                Average Risk Score:{" "}
-                <span className="font-bold">{result.average_risk_score}</span>
-              </div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-lg font-semibold">
+                  Average Risk Score:{" "}
+                  <span className="font-bold">{result.average_risk_score}</span>
+                </div>
 
-              {/* Dynamic Risk Badge */}
-              <div
-                className={`px-4 py-2 rounded-full text-white font-semibold ${
-                  result.risk_level === "Low"
-                    ? "bg-green-500"
-                    : result.risk_level === "Medium"
-                    ? "bg-yellow-500"
-                    : "bg-red-500"
-                }`}
-              >
-                {result.risk_level} Risk
+                {/* Dynamic Risk Badge */}
+                {(() => {
+                  let riskLabel = "Medium";
+                  let colorClass = "bg-yellow-500";
+
+                  if (result.average_risk_score < 1.5) {
+                    riskLabel = "Low";
+                    colorClass = "bg-green-500";
+                  } else if (result.average_risk_score >= 2.5) {
+                    riskLabel = "High";
+                    colorClass = "bg-red-500";
+                  }
+
+                  return (
+                    <div
+                      className={`px-4 py-2 rounded-full text-white font-semibold ${colorClass}`}
+                    >
+                      {riskLabel} Risk
+                    </div>
+                  );
+                })()}
               </div>
-            </div>
             </motion.div>
 
             {/* Detailed Breakdown */}
@@ -204,6 +221,7 @@ export default function ContractEvaluator() {
           </div>
         </div>
       )}
+
 
     </div>
   );
