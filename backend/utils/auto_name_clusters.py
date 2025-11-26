@@ -2,125 +2,139 @@ import os
 import json
 import re
 
-# ---------------------------------------------
-# 1. Define category keyword mappings
-# ---------------------------------------------
+# ---------------------------
+#  Category keyword mapping
+# ---------------------------
 CATEGORY_KEYWORDS = {
     "confidentiality": [
         "confidential", "nda", "non-disclosure", "privacy", "secret",
-        "proprietary information", "non public", "sensitive data", "information sharing"
+        "proprietary information", "sensitive", "data", "information sharing"
     ],
     "liability": [
-        "liability", "indemnity", "indemnification", "responsibility",
-        "damages", "loss", "harm", "limitation of liability"
+        "liability", "indemnity", "indemnification", "damages",
+        "loss", "responsibility", "hold harmless"
     ],
     "termination": [
         "terminate", "termination", "breach", "cancel", "expiry",
-        "suspend", "notice period", "duration", "renewal"
+        "suspend", "notice period"
     ],
     "payment": [
-        "payment", "invoice", "fees", "remuneration", "compensation",
-        "billing", "charges", "cost", "price", "consideration"
+        "payment", "invoice", "fees", "billing", "charges", "price",
+        "compensation", "cost"
     ],
     "governing law": [
-        "law", "jurisdiction", "governing", "dispute", "arbitration",
-        "venue", "court", "applicable law", "governed by"
+        "jurisdiction", "law", "governing", "arbitration", "venue",
+        "court", "dispute", "applicable law"
     ],
     "data protection": [
-        "data", "gdpr", "protection", "security", "processing",
-        "personal data", "breach notification", "information security"
+        "gdpr", "data", "security", "processing", "breach",
+        "information security"
     ],
     "intellectual property": [
-        "intellectual", "ip", "patent", "trademark", "copyright",
-        "ownership", "license", "invention", "proprietary"
+        "intellectual", "ip", "patent", "copyright",
+        "ownership", "license"
     ],
     "representations": [
-        "representation", "warranty", "guarantee", "assure", "assurance",
-        "accuracy", "truth", "certify"
+        "representation", "warranty", "guarantee", "assure", "certify"
     ],
     "force majeure": [
-        "force majeure", "act of god", "unforeseeable", "beyond control",
-        "disaster", "pandemic", "epidemic", "war", "strike"
+        "force majeure", "act of god", "disaster", "pandemic",
+        "unforeseeable"
     ],
     "audit": [
-        "audit", "inspection", "verify", "examination", "review",
-        "access to records", "check compliance"
+        "audit", "inspection", "verify", "examination", "records"
     ],
     "compliance": [
-        "compliance", "regulation", "lawful", "statutory", "policy",
-        "standard", "guidelines"
+        "compliance", "regulation", "policy", "standards"
     ],
     "insurance": [
-        "insurance", "coverage", "policy", "insured", "liability coverage"
+        "insurance", "coverage", "insured", "policy"
     ],
     "assignment": [
-        "assign", "transfer", "delegate", "successor", "subcontractor",
-        "transfer of rights"
+        "assign", "transfer", "delegate", "successor"
     ],
     "dispute resolution": [
-        "dispute", "arbitration", "litigation", "settlement",
-        "mediation", "resolve conflict", "controversy"
+        "dispute", "arbitration", "litigation", "mediation",
+        "settlement"
     ],
-    "governing terms": [
-        "entire agreement", "amendment", "modification", "waiver",
-        "severability", "notices", "interpretation"
-    ]
+    "miscellaneous": []
 }
 
-# ---------------------------------------------
-# 2. File paths
-# ---------------------------------------------
+# ---------------------------
+#  File Paths
+# ---------------------------
 DATA_DIR = os.path.join(os.path.dirname(__file__), "../data")
 INPUT_PATH = os.path.join(DATA_DIR, "auto_category_map.json")
 OUTPUT_PATH = os.path.join(DATA_DIR, "cluster_labels.json")
 
 if not os.path.exists(INPUT_PATH):
-    raise FileNotFoundError(f"Could not find {INPUT_PATH}. Run cluster_categories.py first.")
+    raise FileNotFoundError(f"Could not find {INPUT_PATH}")
 
-# ---------------------------------------------
-# 3. Load clusters
-# ---------------------------------------------
 with open(INPUT_PATH, "r", encoding="utf-8") as f:
     clusters = json.load(f)
 
 print(f"📖 Loaded {len(clusters)} clusters from {INPUT_PATH}")
 
-# ---------------------------------------------
-# 4. Define helper to name clusters
-# ---------------------------------------------
-def guess_cluster_name(cluster_items):
+# ---------------------------
+#  Helper: build text for a cluster
+# ---------------------------
+def cluster_to_text(clauses):
     """
-    Receives a list of dicts (each with clause_text, category, risk_level).
-    Extracts text and applies keyword heuristic.
+    Accepts clauses which may be:
+     - list of strings, or
+     - list of dicts with 'clause_text' key (older format)
+    Returns a single joined lowercased string.
     """
-    # Merge all clause texts into a single string
-    if isinstance(cluster_items[0], dict):
-        text_blobs = " ".join([c.get("clause_text", "") for c in cluster_items])
-    else:
-        text_blobs = " ".join(cluster_items)
+    texts = []
+    for item in clauses:
+        if isinstance(item, str):
+            texts.append(item)
+        elif isinstance(item, dict):
+            # try common keys
+            if "clause_text" in item:
+                texts.append(item["clause_text"])
+            elif "clause" in item:
+                texts.append(item["clause"])
+            elif "text" in item:
+                texts.append(item["text"])
+            else:
+                # fallback: stringify
+                texts.append(str(item))
+        else:
+            texts.append(str(item))
+    return " ".join(texts).lower()
 
-    joined_text = text_blobs.lower()
-    for label, keywords in CATEGORY_KEYWORDS.items():
+# ---------------------------
+#  Guess category using keywords
+# ---------------------------
+def guess_category_from_text(text):
+    for category, keywords in CATEGORY_KEYWORDS.items():
         for kw in keywords:
-            if re.search(rf"\b{re.escape(kw)}\b", joined_text):
-                return label.title()
+            if re.search(rf"\b{re.escape(kw)}\b", text):
+                return category.title()
     return "General / Miscellaneous"
 
-# ---------------------------------------------
-# 5. Assign readable names to clusters
-# ---------------------------------------------
+# ---------------------------
+#  Build labels
+# ---------------------------
 cluster_labels = {}
-for cluster_id, cluster_items in clusters.items():
-    label = guess_cluster_name(cluster_items)
-    cluster_labels[cluster_id] = label
+for cluster_id, clauses in clusters.items():
+    # robust: ensure clauses is a list
+    if isinstance(clauses, dict):
+        # some pipelines output dict {index: clause} — convert to list
+        candidate_clauses = list(clauses.values())
+    else:
+        candidate_clauses = clauses
 
-# ---------------------------------------------
-# 6. Save labeled clusters
-# ---------------------------------------------
+    text = cluster_to_text(candidate_clauses)
+    label = guess_category_from_text(text)
+    cluster_labels[str(cluster_id)] = label
+
+# Save output
 with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
     json.dump(cluster_labels, f, indent=2, ensure_ascii=False)
 
 print(f"✅ Auto-labeled clusters saved to {OUTPUT_PATH}")
-print("🔍 Preview:")
+print("🔍 Preview (first 10):")
 for cid, lbl in list(cluster_labels.items())[:10]:
     print(f"Cluster {cid}: {lbl}")

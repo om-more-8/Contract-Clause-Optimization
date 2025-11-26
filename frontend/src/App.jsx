@@ -1,13 +1,35 @@
-import React from "react";
+import { Routes, Route } from "react-router-dom";
 import ContractEvaluator from "./components/ContractEvaluator";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Dashboard from "./pages/Dashboard";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-6">
-      <h1 className="text-3xl font-bold mb-8 text-blue-700">
-        Contract Clause Risk Evaluator
-      </h1>
-      <ContractEvaluator />
-    </div>
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <ContractEvaluator />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route path="*" element={<Login />} />
+    </Routes>
   );
 }

@@ -1,31 +1,87 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
+
+/**
+ * ContractEvaluator.jsx
+ * Modern vibrant UI for text + PDF evaluation.
+ *
+ * Changes made:
+ * - Result summary & clause list now sit in a row below BOTH the text and PDF panels
+ *   (spans both columns on md+ screens).
+ * - Added animations to buttons, drag-drop, and process indicators using framer-motion.
+ * - Added a subtle animated loading/progress bar for both text and file evaluation.
+ *
+ * Usage:
+ * - POST text -> http://127.0.0.1:8000/contracts/evaluate (JSON { text })
+ * - POST file -> http://127.0.0.1:8000/contracts/upload (multipart/form-data with file)
+ */
+
+const RISK_COLORS = {
+  Low: "bg-green-500 text-white",
+  Medium: "bg-yellow-500 text-black",
+  High: "bg-red-500 text-white",
+  Unknown: "bg-gray-400 text-white",
+};
+
+function RiskBadge({ level = "Unknown" }) {
+  const cls = RISK_COLORS[level] || RISK_COLORS.Unknown;
+  return (
+    <motion.div
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ duration: 0.35 }}
+      className={`px-4 py-2 rounded-full font-semibold ${cls}`}
+    >
+      {level} Risk
+    </motion.div>
+  );
+}
+
+function LoadingBar({ active }) {
+  if (!active) return null;
+  return (
+    <div className="mt-3">
+      <div className="h-2 w-full bg-slate-100 rounded overflow-hidden border">
+        <motion.div
+          className="h-full"
+          initial={{ width: "0%" }}
+          animate={{ width: ["0%", "65%", "100%"] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function ContractEvaluator() {
   const [text, setText] = useState("");
-  const [file, setFile] = useState(null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [fileLoading, setFileLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [fileName, setFileName] = useState(null);
 
-  // Handle text-based evaluation
-  const handleTextSubmit = async (e) => {
-    e.preventDefault();
-    if (!text.trim()) {
-      setError("Please paste some contract text.");
+  const dropRef = useRef();
+
+  // Helper: map average risk number (1..3) to label
+  const avgToLabel = (avg) => {
+    if (typeof avg !== "number") return "Unknown";
+    if (avg <= 1.5) return "Low";
+    if (avg <= 2.3) return "Medium";
+    return "High";
+  };
+
+  const handleTextEvaluate = async (e) => {
+    e?.preventDefault();
+    setError(null);
+
+    if (!text || !text.trim()) {
+      setError("Please paste some contract text or upload a PDF.");
       return;
     }
 
     setLoading(true);
-    setError(null);
     setResult(null);
-
-    const getRiskLevel = (score) => {
-    if (score < 1.5) return { label: "Low", color: "bg-green-200 text-green-800" };
-    if (score < 2.5) return { label: "Medium", color: "bg-yellow-200 text-yellow-800" };
-    return { label: "High", color: "bg-red-200 text-red-800" };
-    };
-
     try {
       const res = await fetch("http://127.0.0.1:8000/contracts/evaluate", {
         method: "POST",
@@ -33,196 +89,361 @@ export default function ContractEvaluator() {
         body: JSON.stringify({ text }),
       });
 
-      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Server ${res.status}: ${errText}`);
+      }
 
       const data = await res.json();
+      // If backend returns average_risk_score number convert to risk_level label
+      if (data && data.average_risk_score !== undefined && !data.risk_level) {
+        data.risk_level = avgToLabel(data.average_risk_score);
+      }
       setResult(data);
     } catch (err) {
       console.error(err);
-      setError("Failed to fetch results. Check backend connection.");
+      setError(String(err.message || err));
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle PDF upload
-  const handleFileSubmit = async (e) => {
-    e.preventDefault();
-    if (!file) {
-      setError("Please select a PDF file.");
-      return;
-    }
+  // ---------- Drag & Drop handlers ----------
+  const onDrop = useCallback(
+    async (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const files = ev.dataTransfer?.files || ev.target?.files;
+      if (!files || files.length === 0) return;
+      await uploadFile(files[0]);
+    },
+    [] // eslint-disable-line
+  );
 
-    setLoading(true);
+  const onDragOver = (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (dropRef.current) dropRef.current.classList.add("ring-4", "ring-indigo-200");
+  };
+
+  const onDragLeave = (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (dropRef.current) dropRef.current.classList.remove("ring-4", "ring-indigo-200");
+  };
+
+  // ---------- Upload file ----------
+  const uploadFile = async (file) => {
     setError(null);
+    setFileLoading(true);
+    setFileName(file.name);
     setResult(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      const form = new FormData();
+      form.append("file", file);
 
       const res = await fetch("http://127.0.0.1:8000/contracts/upload", {
         method: "POST",
-        body: formData,
+        body: form,
       });
 
-      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`Upload failed ${res.status}: ${txt}`);
+      }
 
       const data = await res.json();
-      setResult(data.analysis || data);
+      // Some upload endpoints return extracted_text_preview + analysis
+      // Normalize to result shape if necessary
+      if (data.analysis && !data.average_risk_score) {
+        const drafted = {
+          average_risk_score: data.analysis.average_risk_score || null,
+          risk_level: data.analysis.risk_level || avgToLabel(data.analysis.average_risk_score || 0),
+          details: data.analysis.details || [],
+        };
+        setResult(drafted);
+      } else {
+        if (data && data.average_risk_score !== undefined && !data.risk_level) {
+          data.risk_level = avgToLabel(data.average_risk_score);
+        }
+        setResult(data);
+      }
     } catch (err) {
       console.error(err);
-      setError("PDF upload failed. Please try again.");
+      setError(String(err.message || err));
     } finally {
-      setLoading(false);
+      setFileLoading(false);
+      if (dropRef.current) dropRef.current.classList.remove("ring-4", "ring-indigo-200");
     }
   };
 
-  
+  const handleFileInput = (ev) => {
+    const f = ev.target.files?.[0];
+    if (f) uploadFile(f);
+  };
 
+  // ---------- small helper UI pieces ----------
+  const SummaryBlock = ({ data }) => {
+    if (!data) return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.35 }}
+        className="p-6 rounded-xl bg-white/80 shadow-lg border"
+      >
+        <div className="text-sm text-gray-500">No results yet — evaluate a contract to see a summary here.</div>
+      </motion.div>
+    );
 
-  return (
-    <div className="bg-white p-6 rounded-xl shadow-md w-full max-w-3xl">
-      <h2 className="text-2xl font-semibold mb-4 text-blue-700">Contract Risk Evaluator</h2>
+    const avg = data.average_risk_score ?? null;
+    const level = data.risk_level ?? avgToLabel(avg);
+    // counts
+    const counts = { Low: 0, Medium: 0, High: 0 };
+    (data.details || []).forEach((d) => {
+      const rl = d.risk_level || avgToLabel(d.similarity_score);
+      counts[rl] = (counts[rl] || 0) + 1;
+    });
 
-      {/* ---------- Text Evaluation Section ---------- */}
-      <form onSubmit={handleTextSubmit} className="flex flex-col gap-4 mb-6">
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Paste your contract text here..."
-          className="w-full h-48 p-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
-        />
-        <div className="flex items-center gap-4">
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400"
-          >
-            {loading ? "Evaluating..." : "Evaluate Text"}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setText("");
-              setResult(null);
-              setError(null);
-              setFile(null);
-            }}
-            className="px-3 py-2 border rounded"
-          >
-            Clear
-          </button>
-        </div>
-      </form>
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35 }}
+        className="p-6 rounded-xl bg-white/90 shadow-lg border"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm text-gray-500">Summary</div>
+            <div className="text-2xl font-bold">{level} overall</div>
+            <div className="text-sm text-gray-600 mt-1">Average risk score: <span className="font-semibold">{avg ?? "-"}</span></div>
+          </div>
 
-      {/* ---------- OR Divider ---------- */}
-      <div className="flex items-center my-4">
-        <div className="flex-grow border-t border-gray-300"></div>
-        <span className="mx-3 text-gray-500 text-sm">OR</span>
-        <div className="flex-grow border-t border-gray-300"></div>
-      </div>
-
-      {/* ---------- PDF Upload Section ---------- */}
-      <form onSubmit={handleFileSubmit} className="flex flex-col gap-4 mb-6">
-        <input
-          type="file"
-          accept=".pdf,.doc,.docx"
-          onChange={(e) => setFile(e.target.files[0])}
-          className="block w-full border rounded p-2"
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:bg-gray-400"
-        >
-          {loading ? "Analyzing..." : "Upload PDF & Evaluate"}
-        </button>
-      </form>
-
-      {/* ---------- Error ---------- */}
-      {error && <div className="text-red-500 mt-4 font-medium">{error}</div>}
-
-      {/* ---------- Results ---------- */}
-      {result && (
-        <div className="mt-6">
-          <div className="bg-gray-50 p-6 rounded-xl shadow-md border">
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-              className="mt-6"
-            >
-              {/* Risk Summary */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-lg font-semibold">
-                  Average Risk Score:{" "}
-                  <span className="font-bold">{result.average_risk_score}</span>
-                </div>
-
-                {/* Dynamic Risk Badge */}
-                {(() => {
-                  let riskLabel = "Medium";
-                  let colorClass = "bg-yellow-500";
-
-                  if (result.average_risk_score < 1.5) {
-                    riskLabel = "Low";
-                    colorClass = "bg-green-500";
-                  } else if (result.average_risk_score >= 2.5) {
-                    riskLabel = "High";
-                    colorClass = "bg-red-500";
-                  }
-
-                  return (
-                    <div
-                      className={`px-4 py-2 rounded-full text-white font-semibold ${colorClass}`}
-                    >
-                      {riskLabel} Risk
-                    </div>
-                  );
-                })()}
-              </div>
-            </motion.div>
-
-            {/* Detailed Breakdown */}
-            <div className="mt-3 space-y-3">
-              {result.details && result.details.length ? (
-                result.details.map((d, i) => (
-                  <div key={i} className="border p-3 rounded bg-white hover:shadow">
-                    <div>
-                      <strong>Sentence:</strong> {d.sentence}
-                    </div>
-                    <div>
-                      <strong>Category:</strong> {d.matched_category}
-                    </div>
-                    <div>
-                      <strong>Risk Level:</strong>{" "}
-                      <span
-                        className={`font-semibold ${
-                          d.risk_level === "Low"
-                            ? "text-green-600"
-                            : d.risk_level === "Medium"
-                            ? "text-yellow-600"
-                            : "text-red-600"
-                        }`}
-                      >
-                        {d.risk_level}
-                      </span>
-                    </div>
-                    <div>
-                      <strong>Similarity:</strong> {d.similarity_score}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div>No details returned.</div>
-              )}
-            </div>
+          <div className="text-right space-y-1">
+            <div className="text-xs text-gray-500">High</div>
+            <div className="text-xl font-bold text-red-500">{counts.High}</div>
+            <div className="text-xs text-gray-500 mt-2">Medium</div>
+            <div className="text-xl font-bold text-yellow-500">{counts.Medium}</div>
+            <div className="text-xs text-gray-500 mt-2">Low</div>
+            <div className="text-xl font-bold text-green-500">{counts.Low}</div>
           </div>
         </div>
-      )}
 
+        <div className="mt-4">
+          <div className="text-sm text-gray-600">Short advice</div>
+          <div className="mt-2 text-sm">
+            {level === "High" && <span className="text-red-600">Multiple high-risk clauses found. Recommend legal review and negotiation of terms.</span>}
+            {level === "Medium" && <span className="text-yellow-600">Some clauses need attention. Consider modifying specific sections.</span>}
+            {level === "Low" && <span className="text-green-600">Contract appears low-risk on key categories, but review as needed.</span>}
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
 
+  const ClauseCard = ({ d, i }) => (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: i * 0.03 }}
+      className="border rounded p-3 bg-white hover:shadow-sm"
+    >
+      <div className="flex justify-between items-start gap-3">
+        <div className="flex-1">
+          <div className="text-sm text-gray-600 mb-2"><strong>Sentence:</strong> {d.sentence}</div>
+          <div className="flex gap-3 flex-wrap">
+            <div className="text-xs px-2 py-1 border rounded">{d.matched_category}</div>
+            <div className={`text-xs px-2 py-1 rounded font-semibold ${
+              d.risk_level === "Low" ? "text-green-700 bg-green-50" :
+              d.risk_level === "Medium" ? "text-yellow-700 bg-yellow-50" :
+              "text-red-700 bg-red-50"
+            }`}>
+              {d.risk_level}
+            </div>
+            <div className="text-xs px-2 py-1 border rounded">sim: {d.similarity_score}</div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+
+  return (
+    <div className="max-w-5xl mx-auto p-6">
+      <motion.h2 initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-3xl font-extrabold from-indigo-500 to-pink-500 bg-clip-text text-transparent bg-gradient-to-r">
+        🚀 Contract Risk Analyzer
+      </motion.h2>
+
+      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Left: Input */}
+        <div className="bg-gradient-to-br from-indigo-50/80 to-pink-50/60 rounded-xl p-6 shadow-lg border">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-gray-600">Paste contract text</div>
+              <div className="text-xs text-gray-400">You can also upload a PDF in the right panel.</div>
+            </div>
+            <div className="text-sm text-gray-500">Text mode</div>
+          </div>
+
+          <form onSubmit={handleTextEvaluate} className="mt-4">
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Paste contract text here... (or drag & drop a PDF to the right)"
+              className="w-full h-56 p-4 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white/90 resize-none"
+            />
+
+            <div className="flex items-center gap-3 mt-4">
+              <motion.button
+                type="submit"
+                disabled={loading}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ type: 'spring', stiffness: 300 }}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded shadow text-white ${loading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+              >
+                {loading ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="4" strokeOpacity="0.25" />
+                      <path d="M22 12a10 10 0 0 0-10-10" stroke="white" strokeWidth="4" strokeLinecap="round" />
+                    </svg>
+                    <span> Evaluating...</span>
+                  </>
+                ) : (
+                  'Evaluate Contract'
+                )}
+              </motion.button>
+
+              <motion.button
+                type="button"
+                onClick={() => { setText(""); setResult(null); setError(null); }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="px-3 py-2 border rounded"
+              >
+                Clear
+              </motion.button>
+
+              <div className="ml-auto flex items-center gap-3">
+                <div className="text-sm text-gray-600">Result:</div>
+                <RiskBadge level={result?.risk_level ?? "Unknown"} />
+              </div>
+            </div>
+
+            <LoadingBar active={loading} />
+          </form>
+
+          {error && <div className="mt-4 text-sm text-red-600">{error}</div>}
+        </div>
+
+        {/* Right: File upload */}
+        <div className="rounded-xl p-6 shadow-lg border bg-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-gray-600">Upload PDF (drag & drop)</div>
+              <div className="text-xs text-gray-400">Drop a PDF file here or click to choose.</div>
+            </div>
+            <div className="text-sm text-gray-500">File mode</div>
+          </div>
+
+          <motion.div
+            ref={dropRef}
+            onDrop={onDrop}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onClick={() => document.getElementById("fileinput")?.click()}
+            whileHover={{ scale: 1.01 }}
+            animate={fileLoading ? { boxShadow: "0 8px 24px rgba(99,102,241,0.12)" } : { boxShadow: "0 4px 8px rgba(2,6,23,0.04)" }}
+            transition={{ duration: 0.25 }}
+            className="mt-4 border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center gap-3 cursor-pointer"
+          >
+            <svg className="w-12 h-12 text-indigo-400" viewBox="0 0 24 24" fill="none">
+              <path d="M12 3v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M8 7l4-4 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M20 21H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+
+            <div className="text-sm text-gray-700">Drop PDF here</div>
+            <div className="text-xs text-gray-400">or click to browse</div>
+
+            <input id="fileinput" type="file" accept=".pdf,.doc,.docx" onChange={handleFileInput} className="hidden" />
+            <div className="text-xs text-gray-500">Supported: PDF, DOCX (extracted)</div>
+          </motion.div>
+
+          <div className="mt-4">
+            <div className="flex items-center gap-3">
+              <motion.button
+                onClick={() => {
+                  if (result && result.average_risk_score !== undefined) {
+                    setError(null);
+                  } else {
+                    setError("Upload a file to evaluate.");
+                  }
+                }}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ type: 'spring', stiffness: 300 }}
+                className={`px-3 py-2 rounded text-white ${fileLoading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+              >
+                {fileLoading ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin inline-block mr-2" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="4" strokeOpacity="0.25" />
+                      <path d="M22 12a10 10 0 0 0-10-10" stroke="white" strokeWidth="4" strokeLinecap="round" />
+                    </svg>
+                    Uploading...
+                  </>
+                ) : (
+                  'Upload & Evaluate'
+                )}
+              </motion.button>
+
+              <div className="text-sm text-gray-500 ml-auto">{fileName ?? "No file selected"}</div>
+            </div>
+
+            <LoadingBar active={fileLoading} />
+          </div>
+        </div>
+
+        {/* Results: span both columns on md+ */}
+        <div className="md:col-span-2">
+          <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Summary occupies two columns on large screens */}
+            <div className="lg:col-span-1">
+              <SummaryBlock data={result} />
+            </div>
+
+            {/* Quick stats / actions */}
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="p-6 rounded-xl bg-white/90 shadow-lg border">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-sm text-gray-500">Overall Risk</div>
+                  <div className="mt-2"><RiskBadge level={result?.risk_level ?? "Unknown"} /></div>
+                </div>
+
+                <div className="flex-1">
+                  <div className="text-sm text-gray-500">Quick actions</div>
+                  <div className="mt-3 flex gap-2">
+                    <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} className="px-3 py-2 border rounded">Export</motion.button>
+                    <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} className="px-3 py-2 border rounded">Share</motion.button>
+                    <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} className="px-3 py-2 border rounded">Request Review</motion.button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 text-xs text-gray-500">Note: export/share are placeholders — wire them to your backend/actions.</div>
+            </motion.div>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {result && result.details && result.details.length ? (
+              result.details.map((d, i) => <ClauseCard key={i} d={d} i={i} />)
+            ) : (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-sm text-gray-500">No clause-level details returned yet.</motion.div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

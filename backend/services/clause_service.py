@@ -1,110 +1,108 @@
+# backend/services/clause_service.py
 import os
-import json
-import torch
+import pickle
 import numpy as np
+import torch
 from sentence_transformers import SentenceTransformer, util
 
-# ---------------------------------------------
-# 1. Load LegalBERT
-# ---------------------------------------------
-print("🔹 Loading LegalBERT model...")
-model = SentenceTransformer("nlpaueb/legal-bert-base-uncased")
+# ---------------------------
+# Load model + centroids once
+# ---------------------------
+MODEL_NAME = "nlpaueb/legal-bert-base-uncased"
+print("🔹 Loading LegalBERT model for evaluation...")
+model = SentenceTransformer(MODEL_NAME)
 
-# ---------------------------------------------
-# 2. Load clustered CUAD data
-# ---------------------------------------------
 DATA_DIR = os.path.join(os.path.dirname(__file__), "../data")
-CLUSTERS_PATH = os.path.join(DATA_DIR, "auto_category_map.json")
-LABELS_PATH = os.path.join(DATA_DIR, "cluster_labels.json")
+CENTROID_PATH = os.path.join(DATA_DIR, "cluster_centroids.pkl")
 
-if not os.path.exists(CLUSTERS_PATH):
-    raise FileNotFoundError(f"❌ {CLUSTERS_PATH} not found. Run cluster_categories.py first.")
+if not os.path.exists(CENTROID_PATH):
+    raise FileNotFoundError(f"Missing centroid file at {CENTROID_PATH}. Run utils/build_cluster_centroids.py first.")
 
-if not os.path.exists(LABELS_PATH):
-    raise FileNotFoundError(f"❌ {LABELS_PATH} not found. Run auto_name_clusters.py first.")
+with open(CENTROID_PATH, "rb") as f:
+    saved = pickle.load(f)
 
-with open(CLUSTERS_PATH, "r", encoding="utf-8") as f:
-    cluster_data = json.load(f)
+centroids_dict = saved.get("centroids", {})
+cluster_labels = saved.get("labels", {})
 
-with open(LABELS_PATH, "r", encoding="utf-8") as f:
-    cluster_labels = json.load(f)
+# Convert centroids dict to matrix + index map for fast ops
+centroid_keys = list(centroids_dict.keys())
+if not centroid_keys:
+    raise Exception("No centroids found in centroid file.")
 
-print(f"✅ Loaded {len(cluster_data)} clusters with labels.")
+centroid_matrix = np.stack([centroids_dict[k] for k in centroid_keys])
+# convert to sentence-transformers tensor at query-time
 
-# ---------------------------------------------
-# 3. Flatten reference clauses
-# ---------------------------------------------
-reference_clauses = []
+# risk mapping thresholds — tweakable
+def similarity_to_risk_level(sim):
+    # sim is between -1 and 1, typical 0..1 here
+    if sim >= 0.85:
+        return "Low"
+    if sim >= 0.60:
+        return "Medium"
+    return "High"
 
-for cluster_id, items in cluster_data.items():
-    for item in items:
-        # Handle both string-only and dict formats
-        if isinstance(item, dict):
-            clause_text = item.get("clause_text", "")
-            risk = item.get("risk_level", "Medium")
-        else:
-            clause_text = str(item)
-            risk = "Medium"  # default fallback
+def average_risk_to_overall(avg):
+    # avg typically between 1..3
+    if avg <= 1.5:
+        return "Low"
+    if avg <= 2.3:
+        return "Medium"
+    return "High"
 
-        reference_clauses.append({
-            "text": clause_text,
-            "category": cluster_labels.get(str(cluster_id), "General / Miscellaneous"),
-            "risk_level": risk
-        })
-
-print(f"📚 Prepared {len(reference_clauses)} reference clauses for comparison.")
-
-# ---------------------------------------------
-# 4. Embed reference dataset
-# ---------------------------------------------
-print("🔹 Embedding reference clauses (one-time operation)...")
-ref_embeddings = model.encode(
-    [rc["text"] for rc in reference_clauses],
-    convert_to_tensor=True,
-    show_progress_bar=True
-)
-
-# ---------------------------------------------
-# 5. Risk scoring logic
-# ---------------------------------------------
-RISK_MAP = {"Low": 1, "Medium": 2, "High": 3}
-
+# ---------------------------
+# Main function — input is text string
+# ---------------------------
 def evaluate_contract(text: str):
     """
-    Evaluate contract by matching clauses to clustered CUAD dataset.
+    Input:
+      text (str): full contract text
+    Returns:
+      dict: { average_risk_score, risk_level, details: [ {sentence, matched_category, similarity_score, risk_level}, ... ] }
     """
-    if not text or not isinstance(text, str):
-        return {"error": "Invalid input text."}
+    if not text or not isinstance(text, str) or len(text.strip()) < 5:
+        return {"error": "No valid text provided."}
 
-    sentences = [s.strip() for s in text.split(".") if len(s.strip()) > 10]
+    # Split into sentences (simple split; you can replace with better sentence splitter)
+    sentences = [s.strip() for s in text.split(".") if len(s.strip()) > 8]
     if not sentences:
-        return {"error": "No valid clauses found in text."}
+        return {"error": "No valid sentences extracted."}
 
-    input_embeddings = model.encode(sentences, convert_to_tensor=True, show_progress_bar=False)
+    # Embed sentences
+    input_emb = model.encode(sentences, convert_to_tensor=True)
 
-    matched = []
-    total_risk = 0
+    # Convert to torch tensor once
+    centroid_tensor = torch.tensor(centroid_matrix, dtype=torch.float32)
 
-    for i, sentence in enumerate(sentences):
-        cos_scores = util.cos_sim(input_embeddings[i], ref_embeddings)
-        best_idx = int(torch.argmax(cos_scores))
-        best_score = float(cos_scores[0][best_idx])
+    details = []
+    total_score = 0.0
 
-        match = reference_clauses[best_idx]
-        risk_val = RISK_MAP.get(match["risk_level"], 2)
-        total_risk += risk_val
+    for i, sent in enumerate(sentences):
+        # compute cosine with all centroids
+        cos_scores = util.cos_sim(input_emb[i], centroid_tensor)  # returns 1 x N
+        # convert to numpy
+        scores = cos_scores.cpu().numpy().flatten()
+        best_idx = int(scores.argmax())
+        best_sim = float(scores[best_idx])
+        best_cid = centroid_keys[best_idx]
+        matched_label = cluster_labels.get(str(best_cid), "General / Miscellaneous")
 
-        matched.append({
-            "sentence": sentence,
-            "matched_category": match["category"],
-            "risk_level": match["risk_level"],
-            "similarity_score": round(best_score, 3)
+        # map similarity to risk
+        clause_risk_level = similarity_to_risk_level(best_sim)
+        total_score += {"Low": 1, "Medium": 2, "High": 3}[clause_risk_level]
+
+        details.append({
+            "sentence": sent,
+            "matched_category": matched_label,
+            "cluster_id": best_cid,
+            "similarity_score": round(best_sim, 3),
+            "risk_level": clause_risk_level
         })
 
-    avg_risk = round(total_risk / len(matched), 2)
+    avg = round(total_score / len(sentences), 2)
+    overall = average_risk_to_overall(avg)
 
     return {
-        "average_risk_score": avg_risk,
-        "details": matched,
-        "message": "Evaluation successful using LegalBERT and clustered CUAD base."
+        "average_risk_score": avg,
+        "risk_level": overall,
+        "details": details
     }
