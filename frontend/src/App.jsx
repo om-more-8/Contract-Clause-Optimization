@@ -1,35 +1,40 @@
 import { Routes, Route } from "react-router-dom";
-import ContractEvaluator from "./components/ContractEvaluator";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+import History from "./pages/History";
+import ContractEvaluator from "./components/ContractEvaluator";
 import ProtectedRoute from "./components/ProtectedRoute";
+import Navbar from "./components/Navbar";
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
+    <>
+      <Navbar />
 
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
+      <Routes>
+        <Route path="/" element={<ContractEvaluator />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
 
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <ContractEvaluator />
-          </ProtectedRoute>
-        }
-      />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
 
-      <Route path="*" element={<Login />} />
-    </Routes>
+        <Route
+          path="/history"
+          element={
+            <ProtectedRoute>
+              <History />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </>
   );
 }

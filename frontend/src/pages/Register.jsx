@@ -1,68 +1,89 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { Mail, Lock, User, Eye, EyeOff } from "lucide-react";
 
 export default function Register() {
   const [email, setEmail] = useState("");
-  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSignup = async (e) => {
+  const navigate = useNavigate();
+
+  const handleRegister = async (e) => {
     e.preventDefault();
-    setMessage("");
 
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: { full_name: fullName },
-        redirectTo: "http://localhost:5173/"
-      }
     });
 
-    if (error) setMessage(error.message);
-    else setMessage("Registration successful! Check your email.");
+    if (error) return setError(error.message);
+    navigate("/login");
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-6">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
-        <h2 className="text-2xl font-bold text-center mb-6">Create Account</h2>
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 px-4">
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-md bg-white p-7 rounded-2xl shadow-xl"
+      >
+        <h2 className="text-3xl font-extrabold text-center mb-6 bg-gradient-to-r from-purple-600 to-blue-600 text-transparent bg-clip-text">
+          Create your account
+        </h2>
 
-        <form className="space-y-4" onSubmit={handleSignup}>
-          <input
-            type="text"
-            placeholder="Full Name"
-            className="w-full p-3 border rounded"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-          />
+        {error && <p className="text-red-500 text-center mb-3">{error}</p>}
 
-          <input
-            type="email"
-            placeholder="Email"
-            className="w-full p-3 border rounded"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
+        <form onSubmit={handleRegister} className="space-y-5">
+          <div className="flex items-center gap-3 border rounded-lg px-3 py-2">
+            <Mail size={20} className="text-gray-500" />
+            <input
+              type="email"
+              placeholder="Email address"
+              className="w-full outline-none"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
 
-          <input
-            type="password"
-            placeholder="Password"
-            className="w-full p-3 border rounded"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+          <div className="flex items-center gap-3 border rounded-lg px-3 py-2 relative">
+            <Lock size={20} className="text-gray-500" />
+            <input
+              type={showPass ? "text" : "password"}
+              placeholder="Password"
+              className="w-full outline-none"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPass(!showPass)}
+              className="absolute right-3"
+            >
+              {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
 
-          <button className="w-full bg-blue-600 text-white py-3 rounded hover:bg-blue-700">
-            Sign Up
+          <button
+            type="submit"
+            className="w-full bg-purple-600 text-white py-2 rounded-lg font-semibold hover:bg-purple-700 transition"
+          >
+            Register
           </button>
         </form>
 
-        {message && (
-          <p className="text-center text-sm mt-4 text-gray-700">{message}</p>
-        )}
-      </div>
+        <p className="text-center mt-5 text-gray-600">
+          Already have an account?{" "}
+          <a href="/login" className="text-blue-600 font-medium hover:underline">
+            Login
+          </a>
+        </p>
+      </motion.div>
     </div>
   );
 }

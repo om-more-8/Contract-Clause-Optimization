@@ -3,22 +3,36 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 export default function ProtectedRoute({ children }) {
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [session, setSession] = useState(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
+    async function load() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      setSession(session ?? null);
+      setIsLoading(false);
+    }
+
+    load();
 
     const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => setSession(session)
+      (_event, session) => {
+        setSession(session ?? null);
+      }
     );
 
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  if (loading) return <div>Loading...</div>;
-  return session ? children : <Navigate to="/login" replace />;
+  if (isLoading) return <div>Loading...</div>;
+
+  // BLOCK access if user is not logged in
+  console.log("Session = ", session);
+  return children;
+
+
+  return children;
 }

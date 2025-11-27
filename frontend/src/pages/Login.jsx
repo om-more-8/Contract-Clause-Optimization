@@ -1,123 +1,118 @@
+// Login.jsx
 import { useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { Eye, EyeOff, Mail, Lock, Github, LogIn } from "lucide-react";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const [error, setError] = useState("");
 
   const navigate = useNavigate();
 
-  const handleEmailLogin = async (e) => {
+  const signInWithEmail = async (e) => {
     e.preventDefault();
-    setErrorMsg("");
-    setLoading(true);
+    setError("");
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    setLoading(false);
-
-    if (error) {
-      setErrorMsg(error.message);
-    } else {
-      navigate("/");
-    }
+    if (error) return setError(error.message);
+    navigate("/");
   };
 
-  const loginWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
+  const signInWithGoogle = async () => {
+    await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: "http://localhost:5173" }
+      options: {
+        redirectTo: "http://localhost:5173",
+      },
     });
-    if (error) setErrorMsg(error.message);
-  };
-
-  const loginWithGithub = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "github",
-      options: { redirectTo: "http://localhost:5173" }
-    });
-    if (error) setErrorMsg(error.message);
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100 px-4">
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 px-4">
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="w-full max-w-md bg-white p-7 rounded-2xl shadow-xl"
+      >
+        <h2 className="text-3xl font-extrabold text-center mb-6 bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text">
+          Welcome Back
+        </h2>
 
-        <h2 className="text-2xl font-bold text-center mb-6">Login</h2>
+        {error && <p className="text-red-500 text-center mb-3">{error}</p>}
 
-        {errorMsg && (
-          <div className="bg-red-100 text-red-600 px-4 py-2 rounded mb-4 text-sm">
-            {errorMsg}
+        {/* Email / Password Form */}
+        <form onSubmit={signInWithEmail} className="space-y-5">
+          <div className="flex items-center gap-3 border rounded-lg px-3 py-2">
+            <Mail size={20} className="text-gray-500" />
+            <input
+              type="email"
+              placeholder="Email address"
+              className="w-full outline-none"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </div>
-        )}
 
-        {/* Email Login */}
-        <form onSubmit={handleEmailLogin} className="space-y-4">
-          <input
-            className="w-full px-4 py-2 border rounded-lg"
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-
-          <input
-            className="w-full px-4 py-2 border rounded-lg"
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+          <div className="flex items-center gap-3 border rounded-lg px-3 py-2 relative">
+            <Lock size={20} className="text-gray-500" />
+            <input
+              type={showPass ? "text" : "password"}
+              placeholder="Password"
+              className="w-full outline-none"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPass(!showPass)}
+              className="absolute right-3 text-gray-600"
+            >
+              {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+            className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition"
           >
-            {loading ? "Logging in..." : "Login"}
+            <LogIn size={20} /> Login
           </button>
         </form>
 
         {/* Divider */}
-        <div className="flex items-center my-6">
-          <div className="flex-1 border-t"></div>
-          <span className="px-3 text-gray-500 text-sm">OR</span>
-          <div className="flex-1 border-t"></div>
-        </div>
+        <div className="text-center my-4 text-gray-500">or</div>
 
-        {/* Social Logins */}
-        <div className="space-y-3">
-          <button
-            onClick={loginWithGoogle}
-            className="w-full bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition"
-          >
-            Continue with Google
-          </button>
-
-          <button
-            onClick={loginWithGithub}
-            className="w-full bg-gray-800 text-white py-2 rounded-lg hover:bg-black transition"
-          >
-            Continue with GitHub
-          </button>
-        </div>
+        {/* Google Login */}
+        <button
+          onClick={signInWithGoogle}
+          className="w-full flex items-center justify-center gap-3 border py-2 rounded-lg hover:bg-gray-100 transition"
+        >
+          <img
+            src="https://www.svgrepo.com/show/475656/google-color.svg"
+            className="w-6 h-6"
+          />
+          Continue with Google
+        </button>
 
         {/* Register Link */}
-        <p className="text-center text-sm mt-6">
-          Don’t have an account?{" "}
-          <Link to="/register" className="text-blue-600 font-semibold">
+        <p className="text-center mt-5 text-gray-600">
+          Don't have an account?{" "}
+          <a href="/register" className="text-blue-600 font-medium hover:underline">
             Register
-          </Link>
+          </a>
         </p>
-      </div>
+      </motion.div>
     </div>
   );
 }
