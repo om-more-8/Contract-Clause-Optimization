@@ -1,25 +1,15 @@
+# backend/services/parser_service.py
 import fitz  # PyMuPDF
 
-async def extract_text(file):
-    """
-    Extract text from an uploaded PDF file.
-    """
-    # ✅ Step 1: Read bytes from UploadFile
-    file_bytes = await file.read()
-
-    # ✅ Step 2: Open directly from bytes (no temp file)
+async def extract_text(file_bytes: bytes):
     try:
+        # Directly open from memory
         doc = fitz.open(stream=file_bytes, filetype="pdf")
-    except Exception:
-        # Fallback: write temp file if PyMuPDF fails
-        with open("temp.pdf", "wb") as f:
-            f.write(file_bytes)
-        doc = fitz.open("temp.pdf")
+    except:
+        return ""
 
-    # ✅ Step 3: Extract text from all pages
     text = ""
     for page in doc:
-        text += page.get_text("text") + "\n"
-
+        text += page.get_text()
     doc.close()
-    return text.strip()
+    return text

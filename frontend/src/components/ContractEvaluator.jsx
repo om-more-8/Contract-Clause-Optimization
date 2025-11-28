@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
+import { supabase } from "../lib/supabaseClient";
 
 /**
  * ContractEvaluator.jsx
@@ -72,41 +73,52 @@ export default function ContractEvaluator() {
   };
 
   const handleTextEvaluate = async (e) => {
-    e?.preventDefault();
-    setError(null);
+  e?.preventDefault();
+  setError(null);
 
-    if (!text || !text.trim()) {
-      setError("Please paste some contract text or upload a PDF.");
-      return;
-    }
+  if (!text || !text.trim()) {
+    setError("Please paste some contract text or upload a PDF.");
+    return;
+  }
 
-    setLoading(true);
-    setResult(null);
+  setLoading(true);
+  setResult(null);
+  try {
+    // get current session / user id (if any)
+    let user_id = null;
     try {
-      const res = await fetch("http://127.0.0.1:8000/contracts/evaluate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Server ${res.status}: ${errText}`);
-      }
-
-      const data = await res.json();
-      // If backend returns average_risk_score number convert to risk_level label
-      if (data && data.average_risk_score !== undefined && !data.risk_level) {
-        data.risk_level = avgToLabel(data.average_risk_score);
-      }
-      setResult(data);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const session = sessionData?.session;
+      if (session && session.user && session.user.id) user_id = session.user.id;
     } catch (err) {
-      console.error(err);
-      setError(String(err.message || err));
-    } finally {
-      setLoading(false);
+      // ignore: supabase may not be configured or user not logged in
+      console.warn("Could not fetch session:", err);
     }
-  };
+
+    const res = await fetch("http://127.0.0.1:8000/contracts/evaluate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, user_id, name: "manual evaluation" }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Server ${res.status}: ${errText}`);
+    }
+
+    const data = await res.json();
+    if (data && data.average_risk_score !== undefined && !data.risk_level) {
+      data.risk_level = avgToLabel(data.average_risk_score);
+    }
+    setResult(data);
+  } catch (err) {
+    console.error(err);
+    setError(String(err.message || err));
+  } finally {
+    setLoading(false);
+  }
+};
+  
 
   // ---------- Drag & Drop handlers ----------
   const onDrop = useCallback(
@@ -134,49 +146,61 @@ export default function ContractEvaluator() {
 
   // ---------- Upload file ----------
   const uploadFile = async (file) => {
-    setError(null);
-    setFileLoading(true);
-    setFileName(file.name);
-    setResult(null);
+  setError(null);
+  setFileLoading(true);
+  setFileName(file.name);
+  setResult(null);
 
+  try {
+    // get current session / user id (if any)
+    let user_id = null;
     try {
-      const form = new FormData();
-      form.append("file", file);
-
-      const res = await fetch("http://127.0.0.1:8000/contracts/upload", {
-        method: "POST",
-        body: form,
-      });
-
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(`Upload failed ${res.status}: ${txt}`);
-      }
-
-      const data = await res.json();
-      // Some upload endpoints return extracted_text_preview + analysis
-      // Normalize to result shape if necessary
-      if (data.analysis && !data.average_risk_score) {
-        const drafted = {
-          average_risk_score: data.analysis.average_risk_score || null,
-          risk_level: data.analysis.risk_level || avgToLabel(data.analysis.average_risk_score || 0),
-          details: data.analysis.details || [],
-        };
-        setResult(drafted);
-      } else {
-        if (data && data.average_risk_score !== undefined && !data.risk_level) {
-          data.risk_level = avgToLabel(data.average_risk_score);
-        }
-        setResult(data);
-      }
+      const { data: sessionData } = await supabase.auth.getSession();
+      const session = sessionData?.session;
+      if (session && session.user && session.user.id) user_id = session.user.id;
     } catch (err) {
-      console.error(err);
-      setError(String(err.message || err));
-    } finally {
-      setFileLoading(false);
-      if (dropRef.current) dropRef.current.classList.remove("ring-4", "ring-indigo-200");
+      console.warn("Could not fetch session:", err);
     }
-  };
+
+    const form = new FormData();
+    form.append("file", file);
+    // append optional metadata
+    if (user_id) form.append("user_id", user_id);
+    form.append("name", file.name || "uploaded");
+
+    const res = await fetch("http://127.0.0.1:8000/contracts/upload", {
+      method: "POST",
+      body: form,
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`Upload failed ${res.status}: ${txt}`);
+    }
+
+    const data = await res.json();
+    // Normalize shape
+    if (data.analysis && !data.average_risk_score) {
+      const drafted = {
+        average_risk_score: data.analysis.average_risk_score || null,
+        risk_level: data.analysis.risk_level || avgToLabel(data.analysis.average_risk_score || 0),
+        details: data.analysis.details || [],
+      };
+      setResult(drafted);
+    } else {
+      if (data && data.average_risk_score !== undefined && !data.risk_level) {
+        data.risk_level = avgToLabel(data.average_risk_score);
+      }
+      setResult(data);
+    }
+  } catch (err) {
+    console.error(err);
+    setError(String(err.message || err));
+  } finally {
+    setFileLoading(false);
+    if (dropRef.current) dropRef.current.classList.remove("ring-4", "ring-indigo-200");
+  }
+};
 
   const handleFileInput = (ev) => {
     const f = ev.target.files?.[0];

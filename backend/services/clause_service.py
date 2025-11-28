@@ -57,7 +57,14 @@ def evaluate_contract(text: str):
     Input:
       text (str): full contract text
     Returns:
-      dict: { average_risk_score, risk_level, details: [ {sentence, matched_category, similarity_score, risk_level}, ... ] }
+      dict: {
+        average_risk_score,
+        risk_level,            # "Low"/"Medium"/"High"
+        clause_count,
+        low_count, medium_count, high_count,
+        categories_summary: { category_name: count, ... },
+        details: [ {sentence, matched_category, cluster_id, similarity_score, risk_level}, ... ]
+      }
     """
     if not text or not isinstance(text, str) or len(text.strip()) < 5:
         return {"error": "No valid text provided."}
@@ -70,11 +77,13 @@ def evaluate_contract(text: str):
     # Embed sentences
     input_emb = model.encode(sentences, convert_to_tensor=True)
 
-    # Convert to torch tensor once
+    # Convert centroid matrix to torch tensor once
     centroid_tensor = torch.tensor(centroid_matrix, dtype=torch.float32)
 
     details = []
     total_score = 0.0
+    counts = {"Low": 0, "Medium": 0, "High": 0}
+    category_summary = {}
 
     for i, sent in enumerate(sentences):
         # compute cosine with all centroids
@@ -90,6 +99,9 @@ def evaluate_contract(text: str):
         clause_risk_level = similarity_to_risk_level(best_sim)
         total_score += {"Low": 1, "Medium": 2, "High": 3}[clause_risk_level]
 
+        counts[clause_risk_level] += 1
+        category_summary[matched_label] = category_summary.get(matched_label, 0) + 1
+
         details.append({
             "sentence": sent,
             "matched_category": matched_label,
@@ -98,11 +110,17 @@ def evaluate_contract(text: str):
             "risk_level": clause_risk_level
         })
 
-    avg = round(total_score / len(sentences), 2)
+    clause_count = len(sentences)
+    avg = round(total_score / clause_count, 2)
     overall = average_risk_to_overall(avg)
 
     return {
         "average_risk_score": avg,
         "risk_level": overall,
-        "details": details
+        "clause_count": clause_count,
+        "low_count": counts["Low"],
+        "medium_count": counts["Medium"],
+        "high_count": counts["High"],
+        "categories_summary": category_summary,
+        "details": details,
     }
