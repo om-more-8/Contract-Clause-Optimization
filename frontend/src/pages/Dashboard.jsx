@@ -39,7 +39,7 @@ export default function Dashboard() {
   }, []);
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
+    <div className="pt-24 px-6 min-h-screen">
       <motion.h1
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -57,6 +57,9 @@ export default function Dashboard() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="bg-white p-6 rounded-xl shadow border"
+          style={{
+    background: "linear-gradient(135deg, #f0f7ff 0%, #dfefff 20%, #c5e3ff 40%, #9ac9ff 60%, #6aa8ff 80%, #387fff 100%)"
+  }}
         >
           <h2 className="text-xl font-semibold mb-4">
             Risk Category Distribution

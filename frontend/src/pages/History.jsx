@@ -46,7 +46,8 @@ export default function History() {
   );
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
+    <div className="pt-24 px-6 min-h-screen">
+
       <h1 className="text-3xl font-bold mb-6">History</h1>
 
       {/* Search + Filter */}
@@ -72,63 +73,75 @@ export default function History() {
         </select>
       </div>
 
-      {/* Records */}
-      {loading ? (
-        <div className="space-y-4">
-          {[1, 2, 3].map((s) => (
-            <div
-              key={s}
-              className="h-20 bg-gray-200 animate-pulse rounded-lg"
-            />
-          ))}
-        </div>
-      ) : (
-        paginated.map((row) => (
-          <motion.div
-            key={row.idx}
-            initial={{ opacity: 0, y: 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="border p-4 rounded-lg bg-white shadow mb-3"
-          >
-            <div className="font-semibold text-lg">{row.name}</div>
-            <div className="text-sm text-gray-500">
-              Risk Level:{" "}
-              <span
-                className={`font-bold ${
-                  row.level === "Low"
-                    ? "text-green-600"
-                    : row.level === "Medium"
-                    ? "text-yellow-600"
-                    : "text-red-600"
-                }`}
-              >
-                {row.level}
-              </span>
-            </div>
-            <div className="text-gray-400 text-xs">
-              {new Date(row.created_at).toLocaleString()}
-            </div>
-          </motion.div>
-        ))
-      )}
+              {/* Records Section */}
+        {loading ? (
+          <div className="space-y-4">
+            {[1, 2, 3].map((s) => (
+              <div
+                key={s}
+                className="h-20 bg-white/40 backdrop-blur-md animate-pulse rounded-xl border border-white/30 shadow"
+              />
+            ))}
+          </div>
+        ) : (
+          paginated.map((row) => (
+            <motion.div
+              key={row.idx}
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-5 rounded-2xl mb-4 shadow-md border border-white/30 
+                        bg-white/20 backdrop-blur-xl hover:bg-white/30 transition-all"
+            >
+              <div className="font-semibold text-lg text-gray-900 drop-shadow">
+                {row.name || "Untitled Contract"}
+              </div>
 
-      {/* Pagination */}
-      <div className="flex justify-center mt-6 gap-3">
-        <button
-          disabled={page === 1}
-          onClick={() => setPage((p) => p - 1)}
-          className="px-4 py-2 border rounded disabled:opacity-40"
-        >
-          Prev
-        </button>
-        <button
-          disabled={page * PAGE_SIZE >= filtered.length}
-          onClick={() => setPage((p) => p + 1)}
-          className="px-4 py-2 border rounded disabled:opacity-40"
-        >
-          Next
-        </button>
+              <div className="text-sm mt-1">
+                Risk Level:{" "}
+                <span
+                  className={`font-bold ${
+                    row.level === "Low"
+                      ? "text-green-600"
+                      : row.level === "Medium"
+                      ? "text-yellow-500"
+                      : "text-red-600"
+                  }`}
+                >
+                  {row.level}
+                </span>
+              </div>
+
+              <div className="text-xs text-gray-700 mt-1">
+                {new Date(row.created_at).toLocaleString()}
+              </div>
+            </motion.div>
+          ))
+        )}
+
+        {/* Pagination */}
+        <div className="flex justify-center mt-6 gap-3">
+          <button
+            disabled={page === 1}
+            onClick={() => setPage((p) => p - 1)}
+            className="px-4 py-2 rounded-xl bg-white/30 backdrop-blur-md border border-white/20
+                      hover:bg-white/40 disabled:opacity-40"
+          >
+            Prev
+          </button>
+
+          <button
+            disabled={page * PAGE_SIZE >= filtered.length}
+            onClick={() => setPage((p) => p + 1)}
+            className="px-4 py-2 rounded-xl bg-white/30 backdrop-blur-md border border-white/20
+                      hover:bg-white/40 disabled:opacity-40"
+          >
+            Next
+          </button>
+        </div>
+
+
+      
       </div>
-    </div>
+   
   );
 }

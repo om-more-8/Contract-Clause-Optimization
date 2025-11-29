@@ -10,37 +10,22 @@ import Home from "./pages/Home";
 
 export default function App() {
   return (
-    <div className="min-h-screen text-gray-900 relative">
-
-      {/* HOLOGRAPHIC BACKGROUND */}
-      <div className="absolute inset-0 holo-bg bg-gradient-to-br from-blue-50 via-indigo-100 to-blue-200 -z-10" />
-
-      {/* NAVBAR */}
+    <div
+      className="min-h-screen w-full"
+      style={{
+        background: "linear-gradient(135deg, #f0f7ff 0%, #dfefff 20%, #c5e3ff 40%, #9ac9ff 60%, #6aa8ff 80%, #387fff 100%)",
+        backgroundAttachment: "fixed",   // ⭐ Prevents scroll white gaps
+        backgroundSize: "cover",
+      }}
+    >
       <Navbar />
 
-      {/* PAGE CONTENT */}
-      <div className="pt-28 px-4 pb-10">
+      <div className="pt-24 px-4 md:px-10 max-w-7xl mx-auto">
         <Routes>
           <Route path="/" element={<Home />} />
-
-          <Route
-            path="/evaluate"
-            element={
-              <ProtectedRoute>
-                <ContractEvaluator />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/history"
-            element={
-              <ProtectedRoute>
-                <History />
-              </ProtectedRoute>
-            }
-          />
-
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/evaluate" element={<ContractEvaluator />} />
           <Route
             path="/dashboard"
             element={
@@ -49,9 +34,15 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          
+          <Route
+            path="/history"
+            element={
+              <ProtectedRoute>
+                <History />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
       </div>
     </div>

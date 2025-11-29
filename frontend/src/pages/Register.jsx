@@ -1,100 +1,75 @@
+// src/pages/Register.jsx
 import React, { useState } from "react";
-import { supabase } from "../lib/supabaseClient";
-import { Link, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { Eye, EyeOff, Mail, Lock, User, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import GlassCard from "../components/GlassCard";
+
+let supabase;
+try {
+  supabase = require("../supabaseClient").default;
+} catch (e) {
+  supabase = null;
+}
 
 export default function Register() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPass, setShowPass] = useState(false);
+  const [pw, setPw] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const navigate = useNavigate();
-
   async function handleRegister(e) {
     e.preventDefault();
-    setError("");
     setLoading(true);
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
-    setLoading(false);
-
-    if (error) {
-      setError(error.message);
-    } else {
+    setError("");
+    try {
+      if (supabase && supabase.auth) {
+        const { error } = await supabase.auth.signUp({ email, password: pw });
+        if (error) throw error;
+      } else {
+        console.warn("supabase not found — demo mode");
+      }
       navigate("/login");
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <div className="flex justify-center items-center min-h-screen px-4">
-
-      <motion.div
-        initial={{ opacity: 0, y: 25 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative w-full max-w-md rounded-2xl p-8 backdrop-blur-xl bg-white/10 border border-white/20 shadow-[0_0_20px_rgba(0,255,255,0.2)]"
-      >
-        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-cyan-500/40 via-purple-500/40 to-fuchsia-500/40 blur-xl -z-10"></div>
-
-        <h2 className="text-3xl font-bold text-center mb-6">
-          Create Account 
-        </h2>
-
-        {error && <p className="text-red-400 text-center mb-4">{error}</p>}
+    <div className="min-h-[80vh] flex items-center justify-center px-4">
+      <GlassCard className="max-w-md w-full">
+        <h2 className="text-2xl font-bold mb-2">Create your account</h2>
+        <p className="text-sm text-slate-600 mb-4">Start analyzing contracts with your team.</p>
 
         <form onSubmit={handleRegister} className="space-y-4">
-          {/* Email */}
-          <div className="relative">
-            <Mail className="absolute left-3 top-3 text-gray-300 w-5 h-5" />
-            <input
-              type="email"
-              required
-              className="w-full bg-white/10 p-3 pl-10 rounded-xl outline-none border border-white/20 text-white placeholder-gray-300 focus:border-cyan-400 transition"
-              placeholder="Email address"
-              onChange={(e) => setEmail(e.target.value)}
-            />
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            type="email"
+            required
+            className="w-full p-3 rounded-lg bg-white/8 border border-white/8"
+          />
+          <input
+            value={pw}
+            onChange={(e) => setPw(e.target.value)}
+            placeholder="Password"
+            type="password"
+            required
+            className="w-full p-3 rounded-lg bg-white/8 border border-white/8"
+          />
+          {error && <div className="text-rose-600 text-sm">{error}</div>}
+          <div className="flex gap-3">
+            <button className="flex-1 py-3 rounded-lg bg-indigo-600 text-white" disabled={loading}>
+              {loading ? "Creating…" : "Create account"}
+            </button>
+            <button type="button" onClick={() => navigate("/login")} className="px-4 py-3 border rounded-lg">
+              Cancel
+            </button>
           </div>
-
-          {/* Password */}
-          <div className="relative">
-            <Lock className="absolute left-3 top-3 text-gray-300 w-5 h-5" />
-            <input
-              type={showPass ? "text" : "password"}
-              required
-              className="w-full bg-white/10 p-3 pl-10 rounded-xl outline-none border border-white/20 text-white placeholder-gray-300 focus:border-cyan-400 transition"
-              placeholder="Password"
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <span
-              onClick={() => setShowPass(!showPass)}
-              className="absolute right-3 top-3 text-gray-300 cursor-pointer"
-            >
-              {showPass ? <EyeOff /> : <Eye />}
-            </span>
-          </div>
-
-          <button
-            type="submit"
-            className="w-full bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white py-3 mt-2 rounded-xl font-semibold shadow-lg hover:opacity-90 transition flex justify-center"
-          >
-            {loading ? <Loader2 className="animate-spin" /> : "Register"}
-          </button>
-
         </form>
-
-        <p className="mt-6 text-center text-gray-300">
-          Already have an account?{" "}
-          <Link to="/login" className="text-cyan-400 hover:underline">
-            Login
-          </Link>
-        </p>
-      </motion.div>
+      </GlassCard>
     </div>
   );
 }
