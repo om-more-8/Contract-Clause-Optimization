@@ -106,3 +106,94 @@ body {
 .page-wrapper {
   @apply pt-24 px-6 md:px-12 max-w-6xl mx-auto w-full;
 }
+
+/* Cursor Reactive Glow */
+.cursor-glow {
+  position: relative;
+  overflow: hidden;
+}
+
+.cursor-glow::after {
+  content: "";
+  position: absolute;
+  top: var(--y);
+  left: var(--x);
+  width: 55px;
+  height: 55px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(228, 235, 235, 0.901), transparent 60%);
+  border-radius: 50%;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  opacity: 0;
+}
+
+/* Show glow only on hover */
+.cursor-glow:hover::after {
+  opacity: 1;
+}
+
+/* Base glass card neon breathing */
+.glass-card {
+  position: relative;
+  backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+/* Breathing neon glow */
+.glass-card::before {
+  content: "";
+  position: absolute;
+  inset: -40px;
+  background: radial-gradient(
+    circle at center,
+    rgba(80, 140, 255, 0.18),
+    rgba(120, 90, 255, 0.08),
+    transparent 70%
+  );
+  filter: blur(45px);
+  animation: neon-breathe 5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Cursor glow (reactive) */
+.glass-card::after {
+  content: "";
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  top: var(--y);
+  left: var(--x);
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    circle,
+    rgba(100, 160, 255, var(--glow-strength, 0.25)),
+    transparent 70%
+  );
+  filter: blur(40px);
+  pointer-events: none;
+  transition: opacity 0.25s linear;
+  opacity: 0;
+}
+
+.glass-card:hover::after {
+  opacity: 1;
+}
+
+/* Breathing animation */
+@keyframes neon-breathe {
+  0% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.65;
+  }
+  100% {
+    opacity: 0.35;
+  }
+}

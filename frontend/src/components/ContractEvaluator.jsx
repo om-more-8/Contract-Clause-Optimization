@@ -248,6 +248,26 @@ export default function ContractEvaluator() {
     </motion.div>
   );
 
+  let lastMoveTime = 0;
+
+const handleGlowMove = (e) => {
+  const now = performance.now();
+  const delta = now - lastMoveTime;
+  lastMoveTime = now;
+
+  const speed = Math.min(1, 50 / delta); // fast movement = brighter glow
+
+  const rect = e.currentTarget.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  e.currentTarget.style.setProperty("--x", `${x}px`);
+  e.currentTarget.style.setProperty("--y", `${y}px`);
+  e.currentTarget.style.setProperty("--glow-strength", 0.15 + speed * 0.6);
+};
+
+
+
   return (
     <div className="max-w-5xl mx-auto p-6">
       <motion.h2 initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-3xl font-extrabold from-indigo-500 to-pink-500 bg-clip-text text-transparent bg-gradient-to-r">
@@ -255,7 +275,10 @@ export default function ContractEvaluator() {
       </motion.h2>
 
       <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="glass-card glow-border floating p-6 w-full ">
+        <div
+  className="glass-card glow-border cursor-glow floating p-6 w-full "
+  onMouseMove={handleGlowMove}
+>
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm text-gray-600">Paste contract text</div>
@@ -291,7 +314,8 @@ export default function ContractEvaluator() {
           {error && <div className="mt-4 text-sm text-red-600">{error}</div>}
         </div>
 
-        <div className="glass-card glow-border floating p-6 w-full ">
+        <div   className="glass-card glow-border cursor-glow floating p-6 w-full "
+  onMouseMove={handleGlowMove}>
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm text-gray-600">Upload PDF (drag & drop)</div>
