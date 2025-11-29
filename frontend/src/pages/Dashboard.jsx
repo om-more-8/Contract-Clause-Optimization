@@ -1,74 +1,87 @@
+import React, { useEffect, useState } from "react";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { motion } from "framer-motion";
-import { FileText, Clock, TrendingUp } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
-import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 
 export default function Dashboard() {
-  const [summary, setSummary] = useState({ total: 0, avgRisk: 0 });
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const COLORS = ["#22c55e", "#eab308", "#ef4444"]; // green, yellow, red
+
+  async function loadStats() {
+    setLoading(true);
+
+    const { data, error } = await supabase
+      .from("contracts")
+      .select("level");
+
+    if (!data) return;
+
+    const counts = { Low: 0, Medium: 0, High: 0 };
+    data.forEach((row) => {
+      if (row.level) counts[row.level] += 1;
+    });
+
+    const chartData = [
+      { name: "Low Risk", value: counts.Low },
+      { name: "Medium Risk", value: counts.Medium },
+      { name: "High Risk", value: counts.High },
+    ];
+
+    setStats(chartData);
+    setLoading(false);
+  }
 
   useEffect(() => {
-    const fetchHistory = async () => {
-      const { data: session } = await supabase.auth.getUser();
-      const user = session?.user;
-      if (!user) return;
-
-      const { data } = await supabase
-        .from("contracts")
-        .select("risk_score")
-        .eq("user_id", user.id);
-
-      if (data?.length) {
-        const total = data.length;
-        const avgRisk =
-          data.reduce((a, b) => a + (b.risk_score || 0), 0) / total;
-
-        setSummary({ total, avgRisk: avgRisk.toFixed(2) });
-      }
-    };
-
-    fetchHistory();
+    loadStats();
   }, []);
 
   return (
-    <div className="max-w-5xl mx-auto px-6">
+    <div className="max-w-6xl mx-auto p-6">
       <motion.h1
-        initial={{ opacity: 0, y: 10 }}
+        initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         className="text-3xl font-bold mb-6"
       >
         Dashboard
       </motion.h1>
 
-      {/* Stats Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        {/* Stat Card */}
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <Loader2 className="animate-spin w-12 h-12 text-blue-500" />
+        </div>
+      ) : (
         <motion.div
-          whileHover={{ scale: 1.03 }}
-          className="p-6 bg-white shadow-lg rounded-xl border"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="bg-white p-6 rounded-xl shadow border"
         >
-          <FileText size={32} className="text-blue-600" />
-          <h2 className="text-xl font-bold mt-2">Total Evaluations</h2>
-          <p className="text-gray-600 text-2xl mt-1">{summary.total}</p>
-        </motion.div>
+          <h2 className="text-xl font-semibold mb-4">
+            Risk Category Distribution
+          </h2>
 
-        <motion.div
-          whileHover={{ scale: 1.03 }}
-          className="p-6 bg-white shadow-lg rounded-xl border"
-        >
-          <TrendingUp size={32} className="text-green-600" />
-          <h2 className="text-xl font-bold mt-2">Average Risk Score</h2>
-          <p className="text-gray-600 text-2xl mt-1">{summary.avgRisk}</p>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={stats}
+                cx="50%"
+                cy="50%"
+                outerRadius={90}
+                fill="#8884d8"
+                dataKey="value"
+                label
+              >
+                {stats.map((entry, index) => (
+                  <Cell key={index} fill={COLORS[index]} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
         </motion.div>
-
-        <motion.div
-          whileHover={{ scale: 1.03 }}
-          className="p-6 bg-white shadow-lg rounded-xl border"
-        >
-          <Clock size={32} className="text-purple-600" />
-          <h2 className="text-xl font-bold mt-2">Last Updated</h2>
-          <p className="text-gray-600 mt-1">{new Date().toLocaleDateString()}</p>
-        </motion.div>
-      </div>
+      )}
     </div>
   );
 }

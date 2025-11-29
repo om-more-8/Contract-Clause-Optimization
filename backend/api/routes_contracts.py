@@ -1,5 +1,5 @@
 # backend/api/routes_contracts.py
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Form
 from services.parser_service import extract_text
 from services.clause_service import evaluate_contract
 from database.supabase_client import supabase
@@ -110,51 +110,54 @@ async def evaluate(request: Request):
 
 
 @router.post("/upload")
-async def upload_contract(request: Request, file: UploadFile = File(...)):
-    """
-    Accept PDF/DOCX file, extract text, evaluate, save to DB.
-    """
-    if not file.filename.lower().endswith((".pdf", ".docx", ".doc")):
-        raise HTTPException(400, "Only PDF or DOCX files allowed")
+async def upload_contract(
+    file: UploadFile = File(...),
+    user_id: str | None = Form(None),
+    name: str | None = Form(None)
+):
+    text = await extract_text(file)
 
-    # Read file + extract text
-    file_bytes = await file.read()
-    text = await extract_text(file_bytes)
+    if not text.strip():
+        return {
+            "success": False,
+            "message": "Could not extract text from file. Unsupported or corrupted file.",
+            "user_id": user_id,
+            "file_name": file.filename
+        }
 
-    if not text:
-        raise HTTPException(500, "Failed to extract text from file")
-
-    # Evaluate text via model
     result = evaluate_contract(text)
 
-    # Determine user_id
-    auth_header = request.headers.get("Authorization")
-    user_id = None
-    if auth_header:
-        try:
-            token = auth_header.split()[1]
-            decoded = jwt.decode(token, options={"verify_signature": False})
-            user_id = decoded.get("sub")
-        except Exception:
-            pass
+    # Add a risk_level fallback
+    if result and "average_risk_score" in result:
+        avg = result["average_risk_score"]
+        if avg <= 1.5:
+            risk_label = "Low"
+        elif avg <= 2.3:
+            risk_label = "Medium"
+        else:
+            risk_label = "High"
+        result["risk_level"] = risk_label
 
-    # Insert into Supabase
+    # Save to Supabase
     try:
-        if supabase:
-            supabase.table("contracts").insert({
-                "name": file.filename,
-                "text": text,
-                "risk_score": result.get("average_risk_score"),
-                "level": result.get("risk_level"),
-                "details": json.dumps(result.get("details", [])),
-                "categories_summary": json.dumps(result.get("categories_summary", {})),
-                "user_id": user_id
-            }).execute()
+        payload = {
+            "name": name or file.filename,
+            "text": text,
+            "risk_score": result.get("average_risk_score"),
+            "level": result.get("risk_level"),
+            "user_id": user_id,
+            "categories_summary": result.get("categories_summary"),
+            "details": result.get("details"),
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
+
+        supabase.table("contracts").insert(payload).execute()
     except Exception as e:
-        print("⚠️ Supabase insert (upload) failed:", e)
+        print("Supabase insert failed (upload):", e)
 
     return {
-        "filename": file.filename,
-        "text_preview": text[:1000],
+        "success": True,
+        "file": file.filename,
         "analysis": result
     }
+

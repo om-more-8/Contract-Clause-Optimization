@@ -1,116 +1,119 @@
-// Login.jsx
-import { useState } from "react";
+import React, { useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Mail, Lock, Github, LogIn } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, Github, Loader2 } from "lucide-react";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const navigate = useNavigate();
 
-  const signInWithEmail = async (e) => {
+  async function handleEmailLogin(e) {
     e.preventDefault();
     setError("");
+    setLoading(true);
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (error) return setError(error.message);
-    navigate("/");
-  };
+    setLoading(false);
 
-  const signInWithGoogle = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: "http://localhost:5173",
-      },
-    });
+    if (error) {
+      setError(error.message);
+    } else {
+      navigate("/");
+    }
+  }
+
+  const handleGoogle = async () => {
+    await supabase.auth.signInWithOAuth({ provider: "google" });
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 px-4">
+    <div className="flex justify-center items-center min-h-screen px-4">
+
+      {/* Glassmorphism Card */}
       <motion.div
-        initial={{ opacity: 0, y: 15 }}
+        initial={{ opacity: 0, y: 25 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md bg-white p-7 rounded-2xl shadow-xl"
+        className="relative w-full max-w-md rounded-2xl p-8 backdrop-blur-xl bg-white/10 border border-white/20 shadow-[0_0_20px_rgba(0,255,255,0.2)]"
       >
-        <h2 className="text-3xl font-extrabold text-center mb-6 bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text">
-          Welcome Back
+        {/* Neon glowing border ring */}
+        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-cyan-500/40 via-purple-500/40 to-fuchsia-500/40 blur-xl -z-10"></div>
+
+        <h2 className="text-3xl font-bold text-center mb-6">
+          Welcome Back ✨
         </h2>
 
-        {error && <p className="text-red-500 text-center mb-3">{error}</p>}
+        {error && (
+          <p className="text-red-400 text-center mb-4">{error}</p>
+        )}
 
-        {/* Email / Password Form */}
-        <form onSubmit={signInWithEmail} className="space-y-5">
-          <div className="flex items-center gap-3 border rounded-lg px-3 py-2">
-            <Mail size={20} className="text-gray-500" />
+        <form onSubmit={handleEmailLogin} className="space-y-4">
+          {/* Email */}
+          <div className="relative">
+            <Mail className="absolute left-3 top-3 text-gray-300 w-5 h-5" />
             <input
               type="email"
-              placeholder="Email address"
-              className="w-full outline-none"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
               required
+              className="w-full bg-white/10 p-3 pl-10 rounded-xl outline-none border border-white/20 text-white placeholder-gray-300 focus:border-cyan-400 transition"
+              placeholder="Email address"
+              onChange={(e) => setEmail(e.target.value)}
             />
           </div>
 
-          <div className="flex items-center gap-3 border rounded-lg px-3 py-2 relative">
-            <Lock size={20} className="text-gray-500" />
+          {/* Password */}
+          <div className="relative">
+            <Lock className="absolute left-3 top-3 text-gray-300 w-5 h-5" />
             <input
               type={showPass ? "text" : "password"}
-              placeholder="Password"
-              className="w-full outline-none"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
               required
+              className="w-full bg-white/10 p-3 pl-10 rounded-xl outline-none border border-white/20 text-white placeholder-gray-300 focus:border-cyan-400 transition"
+              placeholder="Password"
+              onChange={(e) => setPassword(e.target.value)}
             />
-            <button
-              type="button"
+            <span
               onClick={() => setShowPass(!showPass)}
-              className="absolute right-3 text-gray-600"
+              className="absolute right-3 top-3 text-gray-300 cursor-pointer"
             >
-              {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
-            </button>
+              {showPass ? <EyeOff /> : <Eye />}
+            </span>
           </div>
 
+          {/* Login Button */}
           <button
             type="submit"
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition"
+            className="w-full bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white py-3 mt-2 rounded-xl font-semibold shadow-lg hover:opacity-90 transition flex justify-center"
           >
-            <LogIn size={20} /> Login
+            {loading ? <Loader2 className="animate-spin" /> : "Log In"}
           </button>
         </form>
 
         {/* Divider */}
-        <div className="text-center my-4 text-gray-500">or</div>
+        <div className="my-6 text-center text-gray-300">— or —</div>
 
-        {/* Google Login */}
+        {/* Google Auth */}
         <button
-          onClick={signInWithGoogle}
-          className="w-full flex items-center justify-center gap-3 border py-2 rounded-lg hover:bg-gray-100 transition"
+          onClick={handleGoogle}
+          className="w-full flex items-center justify-center gap-3 bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-lg py-3 rounded-xl transition"
         >
-          <img
-            src="https://www.svgrepo.com/show/475656/google-color.svg"
-            className="w-6 h-6"
-          />
-          Continue with Google
+          <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-6 h-6" />
+          <span>Continue with Google</span>
         </button>
 
-        {/* Register Link */}
-        <p className="text-center mt-5 text-gray-600">
-          Don't have an account?{" "}
-          <a href="/register" className="text-blue-600 font-medium hover:underline">
+        {/* Footer */}
+        <p className="mt-6 text-center text-gray-300">
+          Don’t have an account?{" "}
+          <Link to="/register" className="text-cyan-400 hover:underline">
             Register
-          </a>
+          </Link>
         </p>
       </motion.div>
     </div>

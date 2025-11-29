@@ -1,20 +1,14 @@
+// src/components/ContractEvaluator.jsx
 import React, { useState, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
+// import your supabase client (adjust path if your client lives in src/lib or src)
 import { supabase } from "../lib/supabaseClient";
 
 /**
- * ContractEvaluator.jsx
- * Modern vibrant UI for text + PDF evaluation.
- *
- * Changes made:
- * - Result summary & clause list now sit in a row below BOTH the text and PDF panels
- *   (spans both columns on md+ screens).
- * - Added animations to buttons, drag-drop, and process indicators using framer-motion.
- * - Added a subtle animated loading/progress bar for both text and file evaluation.
- *
- * Usage:
- * - POST text -> http://127.0.0.1:8000/contracts/evaluate (JSON { text })
- * - POST file -> http://127.0.0.1:8000/contracts/upload (multipart/form-data with file)
+ * ContractEvaluator.jsx (fixed)
+ * - Avoids useSupabaseClient / useUser imports (prevents bundler errors if package versions mismatch)
+ * - Uses supabase.auth.getSession() to try to attach user_id to requests
+ * - Keeps drag/drop + file upload + text evaluate flows
  */
 
 const RISK_COLORS = {
@@ -44,7 +38,7 @@ function LoadingBar({ active }) {
     <div className="mt-3">
       <div className="h-2 w-full bg-slate-100 rounded overflow-hidden border">
         <motion.div
-          className="h-full"
+          className="h-full bg-indigo-400"
           initial={{ width: "0%" }}
           animate={{ width: ["0%", "65%", "100%"] }}
           transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
@@ -61,10 +55,8 @@ export default function ContractEvaluator() {
   const [fileLoading, setFileLoading] = useState(false);
   const [error, setError] = useState(null);
   const [fileName, setFileName] = useState(null);
-
   const dropRef = useRef();
 
-  // Helper: map average risk number (1..3) to label
   const avgToLabel = (avg) => {
     if (typeof avg !== "number") return "Unknown";
     if (avg <= 1.5) return "Low";
@@ -72,157 +64,132 @@ export default function ContractEvaluator() {
     return "High";
   };
 
-  const handleTextEvaluate = async (e) => {
-  e?.preventDefault();
-  setError(null);
-
-  if (!text || !text.trim()) {
-    setError("Please paste some contract text or upload a PDF.");
-    return;
-  }
-
-  setLoading(true);
-  setResult(null);
-  try {
-    // get current session / user id (if any)
-    let user_id = null;
+  const getCurrentUserId = async () => {
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const session = sessionData?.session;
-      if (session && session.user && session.user.id) user_id = session.user.id;
+      const { data } = await supabase.auth.getSession();
+      const session = data?.session;
+      if (session?.user?.id) return session.user.id;
+    } catch (e) {
+      console.warn("Could not read session:", e);
+    }
+    return null;
+  };
+
+  const handleTextEvaluate = async (e) => {
+    e?.preventDefault();
+    setError(null);
+    if (!text || !text.trim()) {
+      setError("Please paste some contract text or upload a PDF.");
+      return;
+    }
+    setLoading(true);
+    setResult(null);
+    try {
+      const user_id = await getCurrentUserId();
+      const res = await fetch("http://127.0.0.1:8000/contracts/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, user_id, name: "manual evaluation" }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Server ${res.status}: ${errText}`);
+      }
+
+      const data = await res.json();
+      if (data && data.average_risk_score !== undefined && !data.risk_level) {
+        data.risk_level = avgToLabel(data.average_risk_score);
+      }
+      setResult(data);
     } catch (err) {
-      // ignore: supabase may not be configured or user not logged in
-      console.warn("Could not fetch session:", err);
+      console.error(err);
+      setError(String(err.message || err));
+    } finally {
+      setLoading(false);
     }
+  };
 
-    const res = await fetch("http://127.0.0.1:8000/contracts/evaluate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, user_id, name: "manual evaluation" }),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Server ${res.status}: ${errText}`);
-    }
-
-    const data = await res.json();
-    if (data && data.average_risk_score !== undefined && !data.risk_level) {
-      data.risk_level = avgToLabel(data.average_risk_score);
-    }
-    setResult(data);
-  } catch (err) {
-    console.error(err);
-    setError(String(err.message || err));
-  } finally {
-    setLoading(false);
-  }
-};
-  
-
-  // ---------- Drag & Drop handlers ----------
-  const onDrop = useCallback(
-    async (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      const files = ev.dataTransfer?.files || ev.target?.files;
-      if (!files || files.length === 0) return;
-      await uploadFile(files[0]);
-    },
-    [] // eslint-disable-line
-  );
+  // drag & drop handlers
+  const onDrop = useCallback(async (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const files = ev.dataTransfer?.files || ev.target?.files;
+    if (!files || files.length === 0) return;
+    await uploadFile(files[0]);
+  }, []);
 
   const onDragOver = (ev) => {
     ev.preventDefault();
     ev.stopPropagation();
     if (dropRef.current) dropRef.current.classList.add("ring-4", "ring-indigo-200");
   };
-
   const onDragLeave = (ev) => {
     ev.preventDefault();
     ev.stopPropagation();
     if (dropRef.current) dropRef.current.classList.remove("ring-4", "ring-indigo-200");
   };
 
-  // ---------- Upload file ----------
   const uploadFile = async (file) => {
-  setError(null);
-  setFileLoading(true);
-  setFileName(file.name);
-  setResult(null);
-
-  try {
-    // get current session / user id (if any)
-    let user_id = null;
+    setError(null);
+    setFileLoading(true);
+    setFileName(file.name);
+    setResult(null);
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const session = sessionData?.session;
-      if (session && session.user && session.user.id) user_id = session.user.id;
-    } catch (err) {
-      console.warn("Could not fetch session:", err);
-    }
+      const user_id = await getCurrentUserId();
+      const form = new FormData();
+      form.append("file", file);
+      if (user_id) form.append("user_id", user_id);
+      form.append("name", file.name || "uploaded");
 
-    const form = new FormData();
-    form.append("file", file);
-    // append optional metadata
-    if (user_id) form.append("user_id", user_id);
-    form.append("name", file.name || "uploaded");
+      const res = await fetch("http://127.0.0.1:8000/contracts/upload", {
+        method: "POST",
+        body: form,
+      });
 
-    const res = await fetch("http://127.0.0.1:8000/contracts/upload", {
-      method: "POST",
-      body: form,
-    });
-
-    if (!res.ok) {
-      const txt = await res.text();
-      throw new Error(`Upload failed ${res.status}: ${txt}`);
-    }
-
-    const data = await res.json();
-    // Normalize shape
-    if (data.analysis && !data.average_risk_score) {
-      const drafted = {
-        average_risk_score: data.analysis.average_risk_score || null,
-        risk_level: data.analysis.risk_level || avgToLabel(data.analysis.average_risk_score || 0),
-        details: data.analysis.details || [],
-      };
-      setResult(drafted);
-    } else {
-      if (data && data.average_risk_score !== undefined && !data.risk_level) {
-        data.risk_level = avgToLabel(data.average_risk_score);
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`Upload failed ${res.status}: ${txt}`);
       }
-      setResult(data);
+
+      const data = await res.json();
+      if (data.analysis && !data.average_risk_score) {
+        const drafted = {
+          average_risk_score: data.analysis.average_risk_score || null,
+          risk_level: data.analysis.risk_level || avgToLabel(data.analysis.average_risk_score || 0),
+          details: data.analysis.details || [],
+        };
+        setResult(drafted);
+      } else {
+        if (data && data.average_risk_score !== undefined && !data.risk_level) {
+          data.risk_level = avgToLabel(data.average_risk_score);
+        }
+        setResult(data);
+      }
+    } catch (err) {
+      console.error(err);
+      setError(String(err.message || err));
+    } finally {
+      setFileLoading(false);
+      if (dropRef.current) dropRef.current.classList.remove("ring-4", "ring-indigo-200");
     }
-  } catch (err) {
-    console.error(err);
-    setError(String(err.message || err));
-  } finally {
-    setFileLoading(false);
-    if (dropRef.current) dropRef.current.classList.remove("ring-4", "ring-indigo-200");
-  }
-};
+  };
 
   const handleFileInput = (ev) => {
     const f = ev.target.files?.[0];
     if (f) uploadFile(f);
   };
 
-  // ---------- small helper UI pieces ----------
   const SummaryBlock = ({ data }) => {
-    if (!data) return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.35 }}
-        className="p-6 rounded-xl bg-white/80 shadow-lg border"
-      >
-        <div className="text-sm text-gray-500">No results yet — evaluate a contract to see a summary here.</div>
-      </motion.div>
-    );
-
+    if (!data) {
+      return (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.35 }} className="p-6 rounded-xl bg-white/80 shadow-lg border">
+          <div className="text-sm text-gray-500">No results yet — evaluate a contract to see a summary here.</div>
+        </motion.div>
+      );
+    }
     const avg = data.average_risk_score ?? null;
     const level = data.risk_level ?? avgToLabel(avg);
-    // counts
     const counts = { Low: 0, Medium: 0, High: 0 };
     (data.details || []).forEach((d) => {
       const rl = d.risk_level || avgToLabel(d.similarity_score);
@@ -230,19 +197,13 @@ export default function ContractEvaluator() {
     });
 
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35 }}
-        className="p-6 rounded-xl bg-white/90 shadow-lg border"
-      >
+      <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="p-6 rounded-xl bg-white/90 shadow-lg border">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-sm text-gray-500">Summary</div>
             <div className="text-2xl font-bold">{level} overall</div>
             <div className="text-sm text-gray-600 mt-1">Average risk score: <span className="font-semibold">{avg ?? "-"}</span></div>
           </div>
-
           <div className="text-right space-y-1">
             <div className="text-xs text-gray-500">High</div>
             <div className="text-xl font-bold text-red-500">{counts.High}</div>
@@ -266,12 +227,7 @@ export default function ContractEvaluator() {
   };
 
   const ClauseCard = ({ d, i }) => (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: i * 0.03 }}
-      className="border rounded p-3 bg-white hover:shadow-sm"
-    >
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }} className="border rounded p-3 bg-white hover:shadow-sm">
       <div className="flex justify-between items-start gap-3">
         <div className="flex-1">
           <div className="text-sm text-gray-600 mb-2"><strong>Sentence:</strong> {d.sentence}</div>
@@ -298,7 +254,6 @@ export default function ContractEvaluator() {
       </motion.h2>
 
       <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Left: Input */}
         <div className="bg-gradient-to-br from-indigo-50/80 to-pink-50/60 rounded-xl p-6 shadow-lg border">
           <div className="flex items-center justify-between">
             <div>
@@ -315,36 +270,11 @@ export default function ContractEvaluator() {
               placeholder="Paste contract text here... (or drag & drop a PDF to the right)"
               className="w-full h-56 p-4 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white/90 resize-none"
             />
-
             <div className="flex items-center gap-3 mt-4">
-              <motion.button
-                type="submit"
-                disabled={loading}
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.98 }}
-                transition={{ type: 'spring', stiffness: 300 }}
-                className={`inline-flex items-center gap-2 px-4 py-2 rounded shadow text-white ${loading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'}`}
-              >
-                {loading ? (
-                  <>
-                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="4" strokeOpacity="0.25" />
-                      <path d="M22 12a10 10 0 0 0-10-10" stroke="white" strokeWidth="4" strokeLinecap="round" />
-                    </svg>
-                    <span> Evaluating...</span>
-                  </>
-                ) : (
-                  'Evaluate Contract'
-                )}
+              <motion.button type="submit" disabled={loading} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} className={`inline-flex items-center gap-2 px-4 py-2 rounded shadow text-white ${loading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
+                {loading ? 'Evaluating...' : 'Evaluate Contract'}
               </motion.button>
-
-              <motion.button
-                type="button"
-                onClick={() => { setText(""); setResult(null); setError(null); }}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="px-3 py-2 border rounded"
-              >
+              <motion.button type="button" onClick={() => { setText(""); setResult(null); setError(null); }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="px-3 py-2 border rounded">
                 Clear
               </motion.button>
 
@@ -360,7 +290,6 @@ export default function ContractEvaluator() {
           {error && <div className="mt-4 text-sm text-red-600">{error}</div>}
         </div>
 
-        {/* Right: File upload */}
         <div className="rounded-xl p-6 shadow-lg border bg-white">
           <div className="flex items-center justify-between">
             <div>
@@ -370,17 +299,7 @@ export default function ContractEvaluator() {
             <div className="text-sm text-gray-500">File mode</div>
           </div>
 
-          <motion.div
-            ref={dropRef}
-            onDrop={onDrop}
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            onClick={() => document.getElementById("fileinput")?.click()}
-            whileHover={{ scale: 1.01 }}
-            animate={fileLoading ? { boxShadow: "0 8px 24px rgba(99,102,241,0.12)" } : { boxShadow: "0 4px 8px rgba(2,6,23,0.04)" }}
-            transition={{ duration: 0.25 }}
-            className="mt-4 border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center gap-3 cursor-pointer"
-          >
+          <motion.div ref={dropRef} onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave} onClick={() => document.getElementById("fileinput")?.click()} whileHover={{ scale: 1.01 }} className="mt-4 border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center gap-3 cursor-pointer">
             <svg className="w-12 h-12 text-indigo-400" viewBox="0 0 24 24" fill="none">
               <path d="M12 3v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               <path d="M8 7l4-4 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -396,30 +315,8 @@ export default function ContractEvaluator() {
 
           <div className="mt-4">
             <div className="flex items-center gap-3">
-              <motion.button
-                onClick={() => {
-                  if (result && result.average_risk_score !== undefined) {
-                    setError(null);
-                  } else {
-                    setError("Upload a file to evaluate.");
-                  }
-                }}
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.98 }}
-                transition={{ type: 'spring', stiffness: 300 }}
-                className={`px-3 py-2 rounded text-white ${fileLoading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'}`}
-              >
-                {fileLoading ? (
-                  <>
-                    <svg className="w-4 h-4 animate-spin inline-block mr-2" viewBox="0 0 24 24" fill="none">
-                      <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="4" strokeOpacity="0.25" />
-                      <path d="M22 12a10 10 0 0 0-10-10" stroke="white" strokeWidth="4" strokeLinecap="round" />
-                    </svg>
-                    Uploading...
-                  </>
-                ) : (
-                  'Upload & Evaluate'
-                )}
+              <motion.button onClick={() => { if (result && result.average_risk_score !== undefined) { setError(null); } else { setError("Upload a file to evaluate."); } }} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} className={`px-3 py-2 rounded text-white ${fileLoading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
+                {fileLoading ? 'Uploading...' : 'Upload & Evaluate'}
               </motion.button>
 
               <div className="text-sm text-gray-500 ml-auto">{fileName ?? "No file selected"}</div>
@@ -429,15 +326,12 @@ export default function ContractEvaluator() {
           </div>
         </div>
 
-        {/* Results: span both columns on md+ */}
         <div className="md:col-span-2">
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Summary occupies two columns on large screens */}
             <div className="lg:col-span-1">
               <SummaryBlock data={result} />
             </div>
 
-            {/* Quick stats / actions */}
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="p-6 rounded-xl bg-white/90 shadow-lg border">
               <div className="flex items-start justify-between gap-4">
                 <div>

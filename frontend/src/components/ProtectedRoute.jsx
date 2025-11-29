@@ -1,3 +1,4 @@
+// src/components/ProtectedRoute.jsx
 import { Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
@@ -18,6 +19,7 @@ export default function ProtectedRoute({ children }) {
 
     load();
 
+    // Listen for login/logout changes
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session ?? null);
@@ -29,10 +31,11 @@ export default function ProtectedRoute({ children }) {
 
   if (isLoading) return <div>Loading...</div>;
 
-  // BLOCK access if user is not logged in
-  console.log("Session = ", session);
-  return children;
+  // 🔥 If no session → redirect to /login
+  if (!session) {
+    return <Navigate to="/login" replace />;
+  }
 
-
+  // If logged in → allow access
   return children;
 }

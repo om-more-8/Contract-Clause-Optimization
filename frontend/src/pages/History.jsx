@@ -1,74 +1,133 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { Loader2, Search } from "lucide-react";
 import { motion } from "framer-motion";
-import { FileText } from "lucide-react";
 
 export default function History() {
   const [records, setRecords] = useState([]);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("All");
+  const [loading, setLoading] = useState(true);
+
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 5;
+
+  async function loadHistory() {
+    setLoading(true);
+
+    const { data, error } = await supabase
+      .from("contracts")
+      .select()
+      .order("created_at", { ascending: false });
+
+    setRecords(data || []);
+    setLoading(false);
+  }
 
   useEffect(() => {
-    const loadHistory = async () => {
-      const { data: session } = await supabase.auth.getUser();
-      const user = session?.user;
-
-      if (!user) return;
-
-      const { data } = await supabase
-        .from("contracts")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      setRecords(data || []);
-    };
-
     loadHistory();
   }, []);
 
+  // ------ Filtering ------
+  const filtered = records.filter((rec) => {
+    const matchesSearch =
+      rec.name?.toLowerCase().includes(search.toLowerCase()) ||
+      rec.text?.toLowerCase().includes(search.toLowerCase());
+
+    const matchesFilter =
+      filter === "All" ? true : rec.level === filter;
+
+    return matchesSearch && matchesFilter;
+  });
+
+  const paginated = filtered.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE
+  );
+
   return (
-    <div className="max-w-5xl mx-auto px-6">
-      <motion.h1
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-3xl font-bold mb-6"
-      >
-        Evaluation History
-      </motion.h1>
+    <div className="max-w-5xl mx-auto p-6">
+      <h1 className="text-3xl font-bold mb-6">History</h1>
 
-      <div className="space-y-4">
-        {records.length === 0 ? (
-          <p className="text-gray-600">No evaluations yet.</p>
-        ) : (
-          records.map((item) => (
-            <motion.div
-              key={item.id}
-              whileHover={{ scale: 1.02 }}
-              className="p-5 bg-white shadow rounded-xl border flex justify-between items-center"
-            >
-              <div>
-                <h3 className="font-semibold text-lg flex items-center gap-2">
-                  <FileText className="text-blue-600" size={20} />
-                  {item.name || "Contract"}
-                </h3>
-                <p className="text-gray-500 text-sm">
-                  Evaluated on: {new Date(item.created_at).toLocaleString()}
-                </p>
-              </div>
+      {/* Search + Filter */}
+      <div className="flex gap-4 mb-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-3 text-gray-400" />
+          <input
+            className="w-full pl-10 p-2 border rounded-lg"
+            placeholder="Search contracts..."
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
 
-              <div
-                className={`px-4 py-2 rounded-full text-white font-semibold ${
-                  item.risk_score < 1.5
-                    ? "bg-green-500"
-                    : item.risk_score < 2.3
-                    ? "bg-yellow-500"
-                    : "bg-red-500"
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className="p-2 border rounded-lg"
+        >
+          <option>All</option>
+          <option>Low</option>
+          <option>Medium</option>
+          <option>High</option>
+        </select>
+      </div>
+
+      {/* Records */}
+      {loading ? (
+        <div className="space-y-4">
+          {[1, 2, 3].map((s) => (
+            <div
+              key={s}
+              className="h-20 bg-gray-200 animate-pulse rounded-lg"
+            />
+          ))}
+        </div>
+      ) : (
+        paginated.map((row) => (
+          <motion.div
+            key={row.idx}
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="border p-4 rounded-lg bg-white shadow mb-3"
+          >
+            <div className="font-semibold text-lg">{row.name}</div>
+            <div className="text-sm text-gray-500">
+              Risk Level:{" "}
+              <span
+                className={`font-bold ${
+                  row.level === "Low"
+                    ? "text-green-600"
+                    : row.level === "Medium"
+                    ? "text-yellow-600"
+                    : "text-red-600"
                 }`}
               >
-                Risk: {item.risk_score}
-              </div>
-            </motion.div>
-          ))
-        )}
+                {row.level}
+              </span>
+            </div>
+            <div className="text-gray-400 text-xs">
+              {new Date(row.created_at).toLocaleString()}
+            </div>
+          </motion.div>
+        ))
+      )}
+
+      {/* Pagination */}
+      <div className="flex justify-center mt-6 gap-3">
+        <button
+          disabled={page === 1}
+          onClick={() => setPage((p) => p - 1)}
+          className="px-4 py-2 border rounded disabled:opacity-40"
+        >
+          Prev
+        </button>
+        <button
+          disabled={page * PAGE_SIZE >= filtered.length}
+          onClick={() => setPage((p) => p + 1)}
+          className="px-4 py-2 border rounded disabled:opacity-40"
+        >
+          Next
+        </button>
       </div>
     </div>
   );
