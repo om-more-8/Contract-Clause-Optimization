@@ -31,14 +31,76 @@ body {
 }
 
 /* Glass-morphism utility */
-.glass {
-  background: rgba(255, 255, 255, 0.22);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-  border-radius: 18px;
+/* --- GLOBAL GLASS EFFECT --- */
+.glass-card {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(16px) saturate(170%);
+  -webkit-backdrop-filter: blur(16px) saturate(170%);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  position: relative;
+  transition: all 0.4s ease;
 }
+
+/* --- NEON BORDER HOVER --- */
+.glass-card:hover {
+  transform: translateY(-3px) scale(1.01);
+  box-shadow:
+    0 0 20px rgba(0, 140, 255, 0.4),
+    0 0 35px rgba(125, 0, 255, 0.3);
+}
+
+/* Animated neon gradient border */
+.glow-border {
+  position: relative;
+}
+
+.glow-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  padding: 2px;
+  background: linear-gradient(
+      130deg,
+      #5ab0ff,
+      #3a00ff,
+      #ff00e5,
+      #3dd9ff,
+      #5ab0ff
+    );
+  background-size: 400% 400%;
+  animation: glowMove 6s ease infinite;
+  -webkit-mask: 
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.glow-border:hover::before {
+  pointer-events: none;
+  opacity: 1;
+
+}
+
+@keyframes glowMove {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* --- SMOOTH FLOAT HOVER ANIMATION --- */
+.floating {
+  transition: transform 0.5s ease, box-shadow 0.5s ease;
+}
+
+.floating:hover {
+  transform: translateY(-5px);
+}
+
 
 /* Container wrapper to prevent content touching navbar */
 .page-wrapper {

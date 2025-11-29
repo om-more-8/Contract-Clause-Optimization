@@ -3,6 +3,7 @@ import React, { useState, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 // import your supabase client (adjust path if your client lives in src/lib or src)
 import { supabase } from "../lib/supabaseClient";
+import GlassCard from "./GlassCard";
 
 /**
  * ContractEvaluator.jsx (fixed)
@@ -254,7 +255,7 @@ export default function ContractEvaluator() {
       </motion.h2>
 
       <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-gradient-to-br from-indigo-50/80 to-pink-50/60 rounded-xl p-6 shadow-lg border">
+        <div className="glass-card glow-border floating p-6 w-full ">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm text-gray-600">Paste contract text</div>
@@ -290,7 +291,7 @@ export default function ContractEvaluator() {
           {error && <div className="mt-4 text-sm text-red-600">{error}</div>}
         </div>
 
-        <div className="rounded-xl p-6 shadow-lg border bg-white">
+        <div className="glass-card glow-border floating p-6 w-full ">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm text-gray-600">Upload PDF (drag & drop)</div>
@@ -325,14 +326,19 @@ export default function ContractEvaluator() {
             <LoadingBar active={fileLoading} />
           </div>
         </div>
-
+        
         <div className="md:col-span-2">
+          
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <GlassCard>
             <div className="lg:col-span-1">
               <SummaryBlock data={result} />
             </div>
+            </GlassCard>
 
+            <GlassCard>
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="p-6 rounded-xl bg-white/90 shadow-lg border">
+              
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="text-sm text-gray-500">Overall Risk</div>
@@ -350,8 +356,11 @@ export default function ContractEvaluator() {
               </div>
 
               <div className="mt-4 text-xs text-gray-500">Note: export/share are placeholders — wire them to your backend/actions.</div>
+              
             </motion.div>
+            </GlassCard>
           </div>
+          
 
           <div className="mt-4 space-y-3">
             {result && result.details && result.details.length ? (

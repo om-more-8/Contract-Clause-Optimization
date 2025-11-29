@@ -46,7 +46,8 @@ export default function History() {
   );
 
   return (
-    <div className="pt-24 px-6 min-h-screen">
+    <div className="pt-24 px-6 min-h-screen"
+  >
 
       <h1 className="text-3xl font-bold mb-6">History</h1>
 
