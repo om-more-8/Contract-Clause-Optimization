@@ -7,6 +7,7 @@ import History from "./pages/History";
 import ContractEvaluator from "./components/ContractEvaluator";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Home from "./pages/Home";
+import ParticleBackground from "./components/ParticleBackground";
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
         backgroundSize: "cover",
       }}
     >
+      <ParticleBackground colorPrimary="60,120,255" colorAccent="100,200,255" density={0.0006} />
       <Navbar />
 
       <div className="pt-24 px-4 md:px-10 max-w-7xl mx-auto">

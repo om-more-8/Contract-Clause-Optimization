@@ -197,3 +197,129 @@ body {
     opacity: 0.35;
   }
 }
+
+/* ----------------------------
+   Parallax card layers + tilt
+   ---------------------------- */
+
+.parallax-card {
+  position: relative;
+  border-radius: 18px;
+  overflow: visible;
+  transform-style: preserve-3d;
+  will-change: transform;
+  transition: transform 400ms cubic-bezier(.2,.9,.2,1), box-shadow 300ms ease;
+  pointer-events: auto; /* allow inputs */
+}
+
+/* main glass surface (content) */
+.parallax-card .glass-surface {
+  position: relative;
+  z-index: 20;
+  padding: 28px;
+  border-radius: 14px;
+  backdrop-filter: blur(14px) saturate(1.05);
+  background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06));
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 12px 30px rgba(10,20,40,0.12);
+}
+
+/* floating decorative layers (parallax) */
+.parallax-card .layer {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  transform-origin: center;
+  mix-blend-mode: screen;
+}
+
+/* subtle color layer */
+.parallax-card .layer.layer-1 {
+  background: radial-gradient(circle at 20% 10%, rgba(120,160,255,0.09), transparent 30%);
+  filter: blur(40px);
+  z-index: 5;
+}
+
+/* second color */
+.parallax-card .layer.layer-2 {
+  background: radial-gradient(circle at 80% 80%, rgba(120,90,255,0.07), transparent 30%);
+  filter: blur(60px);
+  z-index: 6;
+}
+
+/* soft rim lighting */
+.parallax-card .layer.layer-rim {
+  background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  mix-blend-mode: overlay;
+  opacity: 0.9;
+  z-index: 7;
+  border: 1px solid rgba(255,255,255,0.04);
+}
+
+/* Neon rim border on hover */
+.parallax-card:hover .rim-outline {
+  box-shadow:
+    0 0 24px rgba(100,160,255,0.14),
+    inset 0 0 18px rgba(140,100,255,0.06);
+  transition: box-shadow 260ms ease;
+}
+
+/* small accent line (animated) */
+.parallax-card .accent {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(120,160,255,0.12), transparent 40%, rgba(140,90,255,0.08));
+  mix-blend-mode: overlay;
+  z-index: 10;
+  transform: translateZ(20px);
+}
+
+/* make sure content is on top */
+.parallax-card .content {
+  position: relative;
+  z-index: 30;
+}
+
+/* tilt shadow */
+.parallax-card .tilt-shadow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 30px 60px rgba(20,40,90,0.12);
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* keep inputs accessible */
+.parallax-card input, .parallax-card textarea, .parallax-card button {
+  position: relative;
+  z-index: 40;
+}
+
+/* ----------------------------
+   Particle background canvas
+   ---------------------------- */
+
+.particle-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* a subtle overlay so page content sits above */
+.particle-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* responsiveness tweaks */
+@media (max-width: 900px) {
+  .parallax-card .glass-surface { padding: 20px; }
+}
+

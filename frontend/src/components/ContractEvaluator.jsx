@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 // import your supabase client (adjust path if your client lives in src/lib or src)
 import { supabase } from "../lib/supabaseClient";
 import GlassCard from "./GlassCard";
+import ParallaxCard from "../components/ParallaxCard";
 
 /**
  * ContractEvaluator.jsx (fixed)
@@ -273,83 +274,122 @@ const handleGlowMove = (e) => {
       <motion.h2 initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-3xl font-extrabold from-indigo-500 to-pink-500 bg-clip-text text-transparent bg-gradient-to-r">
         🚀 Contract Risk Analyzer
       </motion.h2>
-
+      
       <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div
-  className="glass-card glow-border cursor-glow floating p-6 w-full "
+        
+        {/* TEXT CARD — FIXED */}
+<ParallaxCard
+  className="
+    relative 
+    w-full
+    p-6 
+    rounded-2xl 
+    glass-card 
+    glow-border 
+    cursor-glow 
+    floating
+  "
   onMouseMove={handleGlowMove}
 >
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm text-gray-600">Paste contract text</div>
-              <div className="text-xs text-gray-400">You can also upload a PDF in the right panel.</div>
-            </div>
-            <div className="text-sm text-gray-500">Text mode</div>
-          </div>
+  {/* Header */}
+  <div className="flex items-center justify-between mb-3">
+    <div>
+      <div className="text-sm text-gray-700 font-semibold">Paste contract text</div>
+      <div className="text-xs text-gray-500">You can also upload a PDF in the right panel.</div>
+    </div>
+    <div className="text-sm text-gray-500">Text mode</div>
+  </div>
 
-          <form onSubmit={handleTextEvaluate} className="mt-4">
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Paste contract text here... (or drag & drop a PDF to the right)"
-              className="w-full h-56 p-4 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white/90 resize-none"
-            />
-            <div className="flex items-center gap-3 mt-4">
-              <motion.button type="submit" disabled={loading} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} className={`inline-flex items-center gap-2 px-4 py-2 rounded shadow text-white ${loading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
-                {loading ? 'Evaluating...' : 'Evaluate Contract'}
-              </motion.button>
-              <motion.button type="button" onClick={() => { setText(""); setResult(null); setError(null); }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="px-3 py-2 border rounded">
-                Clear
-              </motion.button>
+  {/* Text Box */}
+  <textarea
+    value={text}
+    onChange={(e) => setText(e.target.value)}
+    placeholder="Paste contract text here..."
+    className="w-full h-56 p-4 rounded-lg border bg-white/80 backdrop-blur focus:ring-2 focus:ring-indigo-300"
+  />
 
-              <div className="ml-auto flex items-center gap-3">
-                <div className="text-sm text-gray-600">Result:</div>
-                <RiskBadge level={result?.risk_level ?? "Unknown"} />
-              </div>
-            </div>
+  {/* Buttons */}
+  <div className="flex items-center gap-3 mt-4">
+    <motion.button
+      type="submit"
+      onClick={handleTextEvaluate}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-md"
+    >
+      Evaluate Contract
+    </motion.button>
 
-            <LoadingBar active={loading} />
-          </form>
+    <button
+      onClick={() => { setText(""); setResult(null); setError(null); }}
+      className="px-3 py-2 border rounded-lg bg-white/70 backdrop-blur"
+    >
+      Clear
+    </button>
 
-          {error && <div className="mt-4 text-sm text-red-600">{error}</div>}
-        </div>
+    <div className="ml-auto flex items-center gap-3">
+      <div className="text-sm text-gray-600">Result:</div>
+      <RiskBadge level={result?.risk_level ?? "Unknown"} />
+    </div>
+  </div>
+</ParallaxCard>
 
-        <div   className="glass-card glow-border cursor-glow floating p-6 w-full "
-  onMouseMove={handleGlowMove}>
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm text-gray-600">Upload PDF (drag & drop)</div>
-              <div className="text-xs text-gray-400">Drop a PDF file here or click to choose.</div>
-            </div>
-            <div className="text-sm text-gray-500">File mode</div>
-          </div>
 
-          <motion.div ref={dropRef} onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave} onClick={() => document.getElementById("fileinput")?.click()} whileHover={{ scale: 1.01 }} className="mt-4 border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center gap-3 cursor-pointer">
-            <svg className="w-12 h-12 text-indigo-400" viewBox="0 0 24 24" fill="none">
-              <path d="M12 3v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M8 7l4-4 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M20 21H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+        
+        <ParallaxCard
+  className="glass-card glow-border cursor-glow floating p-6 w-full"
+  onMouseMove={handleGlowMove}
+>
+  <div className="flex items-center justify-between">
+    <div>
+      <div className="text-sm text-gray-600">Upload PDF (drag & drop)</div>
+      <div className="text-xs text-gray-400">Drop a PDF or DOCX file here.</div>
+    </div>
+    <div className="text-sm text-gray-500">File mode</div>
+  </div>
 
-            <div className="text-sm text-gray-700">Drop PDF here</div>
-            <div className="text-xs text-gray-400">or click to browse</div>
+  <motion.div
+    ref={dropRef}
+    onDrop={onDrop}
+    onDragOver={onDragOver}
+    onDragLeave={onDragLeave}
+    onClick={() => document.getElementById("fileinput")?.click()}
+    whileHover={{ scale: 1.01 }}
+    className="mt-4 border-2 border-dashed rounded-lg p-6 flex flex-col
+               items-center justify-center gap-3 cursor-pointer bg-white/40"
+  >
+    <svg className="w-12 h-12 text-indigo-400" viewBox="0 0 24 24" fill="none">
+      <path d="M12 3v12" stroke="currentColor" strokeWidth="2" />
+      <path d="M8 7l4-4 4 4" stroke="currentColor" strokeWidth="2" />
+      <path d="M20 21H4a2 2 0 01-2-2V7a2 2 0 012-2h5" stroke="currentColor" strokeWidth="2" />
+    </svg>
 
-            <input id="fileinput" type="file" accept=".pdf,.doc,.docx" onChange={handleFileInput} className="hidden" />
-            <div className="text-xs text-gray-500">Supported: PDF, DOCX (extracted)</div>
-          </motion.div>
+    <div className="text-sm text-gray-700">Drop PDF here</div>
+    <div className="text-xs text-gray-400">or click to browse</div>
 
-          <div className="mt-4">
-            <div className="flex items-center gap-3">
-              <motion.button onClick={() => { if (result && result.average_risk_score !== undefined) { setError(null); } else { setError("Upload a file to evaluate."); } }} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} className={`px-3 py-2 rounded text-white ${fileLoading ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
-                {fileLoading ? 'Uploading...' : 'Upload & Evaluate'}
-              </motion.button>
+    <input id="fileinput" type="file" accept=".pdf,.doc,.docx" onChange={handleFileInput} className="hidden" />
+    <div className="text-xs text-gray-500">Supported: PDF, DOCX</div>
+  </motion.div>
 
-              <div className="text-sm text-gray-500 ml-auto">{fileName ?? "No file selected"}</div>
-            </div>
+  <div className="mt-4 flex justify-between items-center">
+    <motion.button
+      whileHover={{ scale: 1.03 }}
+      whileTap={{ scale: 0.98 }}
+      className={`px-3 py-2 rounded text-white ${
+        fileLoading ? "bg-indigo-400" : "bg-indigo-600 hover:bg-indigo-700"
+      }`}
+    >
+      {fileLoading ? "Uploading..." : "Upload & Evaluate"}
+    </motion.button>
 
-            <LoadingBar active={fileLoading} />
-          </div>
-        </div>
+    <div className="text-sm text-gray-600">
+      {fileName ?? "No file selected"}
+    </div>
+  </div>
+
+  <LoadingBar active={fileLoading} />
+</ParallaxCard>
+
         
         <div className="md:col-span-2">
           
@@ -395,6 +435,7 @@ const handleGlowMove = (e) => {
           </div>
         </div>
       </div>
+      
     </div>
   );
 }
