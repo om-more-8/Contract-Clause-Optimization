@@ -2,9 +2,28 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import GlassCard from "../components/GlassCard";
+import { useState } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 export default function Home() {
   const navigate = useNavigate();
+
+   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  
+
+  const handleEmailLogin = async () => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    navigate("/evaluate");
+  };
+
+  const handleGoogleLogin = async () => {
+    await supabase.auth.signInWithOAuth({ provider: "google" });
+  };
 
   return (
     <main className="min-h-[80vh] max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -24,7 +43,13 @@ export default function Home() {
 
           <div className="flex gap-3 items-center">
             <button
-              onClick={() => navigate("/evaluate")}
+              onClick={() => {
+                const user = supabase.auth.getUser();
+                user.then(({ data }) => {
+                  if (!data?.user) navigate("/login");
+                  else navigate("/evaluate");
+                });
+              }}
               className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold 
                         transition-all duration-300 hover:scale-105 hover:shadow-[0_0_12px_rgba(0,153,255,0.7)]
                         active:scale-95"
@@ -34,7 +59,7 @@ export default function Home() {
 
             <button
               onClick={() => navigate("/register")}
-              className="px-4 py-2 rounded-lg bg-blue-300 text-white font-semibold 
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold 
 transition-all duration-300 hover:scale-105 hover:shadow-[0_0_12px_rgba(0,153,255,0.7)]
 active:scale-95"
             >
@@ -64,27 +89,33 @@ active:scale-95"
 
               <div className="space-y-3">
                 <input
-                  readOnly
-                  placeholder="Email (demo)"
-                  className="w-full rounded-lg p-3 bg-white/10 border border-white/8 placeholder:text-slate-400"
-                />
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Email"
+                    className="w-full rounded-lg p-3 bg-white/10 border border-white/8 placeholder:text-slate-400"
+                  />
+
                 <input
-                  readOnly
-                  placeholder="Password (demo)"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
                   className="w-full rounded-lg p-3 bg-white/10 border border-white/8 placeholder:text-slate-400"
                 />
               </div>
 
               <div className="flex gap-3">
                 <button
-                  onClick={() => navigate("/login")}
-                  className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
-                >
-                  Sign in
-                </button>
+                    onClick={handleEmailLogin}
+                    className="glass-card flex-1 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 hover:text-white text-black rounded-lg"
+                  >
+                    Sign in
+                  </button>
+
                 <button
                   onClick={() => navigate("/register")}
-                  className="px-4 py-2 border rounded-lg"
+                  className="glass-card  bg-indigo-500 hover:bg-indigo-600 hover:text-white text-black px-4 py-2 border rounded-lg"
                 >
                   Register
                 </button>
@@ -93,12 +124,13 @@ active:scale-95"
               <div className="pt-2 text-sm text-slate-500">Or try social sign in</div>
               <div className="flex gap-3 mt-2">
                 <button
-                  onClick={() => navigate("/login")}
-                  className="flex-1 py-2 rounded-lg border border-white/10 bg-white/5"
+                  onClick={handleGoogleLogin}
+                  className="glass-card flex-1 py-2 rounded-lg border border-white/10 bg-white/5"
                 >
                   Google
                 </button>
-                <button className="flex-1 py-2 rounded-lg border border-white/10 bg-white/5">
+
+                <button className="glass-card flex-1 py-2 rounded-lg border border-white/10 bg-white/5">
                   GitHub
                 </button>
               </div>

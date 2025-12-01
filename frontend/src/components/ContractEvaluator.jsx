@@ -392,15 +392,14 @@ const handleGlowMove = (e) => {
 
         
         <div className="md:col-span-2">
-          
+          <GlassCard>
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <GlassCard>
+            
             <div className="lg:col-span-1">
               <SummaryBlock data={result} />
             </div>
-            </GlassCard>
-
-            <GlassCard>
+            
+            
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="p-6 rounded-xl bg-white/90 shadow-lg border">
               
               <div className="flex items-start justify-between gap-4">
@@ -422,16 +421,72 @@ const handleGlowMove = (e) => {
               <div className="mt-4 text-xs text-gray-500">Note: export/share are placeholders — wire them to your backend/actions.</div>
               
             </motion.div>
-            </GlassCard>
+            
           </div>
+          </GlassCard>
+
           
 
           <div className="mt-4 space-y-3">
-            {result && result.details && result.details.length ? (
-              result.details.map((d, i) => <ClauseCard key={i} d={d} i={i} />)
-            ) : (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-sm text-gray-500">No clause-level details returned yet.</motion.div>
-            )}
+            
+{/* ---------- CLAUSE ANALYSIS (SOLID WHITE, NO TRANSPARENCY) ---------- */}
+{result && result.details && (
+  <div className="mt-12 max-w-5xl mx-auto">
+
+    <h2 className="text-3xl font-bold mb-6 text-gray-900">
+      Clause Analysis
+    </h2>
+
+    <div className="space-y-6">
+
+      {result.details.map((item, index) => (
+        <div
+          key={index}
+          className="
+            clause-card                        /* custom class */
+            p-6
+            rounded-xl
+            shadow-md
+            border border-gray-300
+            transition-all duration-200
+            hover:-translate-y-1
+            hover:shadow-xl
+          "
+        >
+          <p className="text-gray-900 font-semibold">
+            <span className="font-bold">Sentence:</span> {item.sentence}
+          </p>
+
+          <div className="flex flex-wrap gap-3 mt-3">
+
+            <span className="px-3 py-1 bg-blue-100 text-blue-600 rounded-lg text-sm font-medium">
+              {item.matched_category}
+            </span>
+
+            <span className={`
+              px-3 py-1 rounded-lg text-sm font-medium
+              ${item.risk_level === "High" ? "bg-red-100 text-red-600" 
+                : item.risk_level === "Medium" ? "bg-yellow-100 text-yellow-700"
+                : "bg-green-100 text-green-700"}
+            `}>
+              {item.risk_level}
+            </span>
+
+            <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium">
+              sim: {item.similarity_score?.toFixed(3)}
+            </span>
+          </div>
+
+        </div>
+      ))}
+
+    </div>
+  </div>
+)}
+
+
+
+
           </div>
         </div>
       </div>

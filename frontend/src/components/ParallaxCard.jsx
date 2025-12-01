@@ -1,10 +1,7 @@
+// src/components/ParallaxCard.jsx
 import React, { useRef, useEffect } from "react";
 
-export default function ParallaxCard({
-  children,
-  className = "",
-  depth = 15,
-}) {
+export default function ParallaxCard({ children, className = "" }) {
   const cardRef = useRef(null);
   const lastPos = useRef({ x: 0, y: 0, t: 0 });
 
@@ -12,30 +9,24 @@ export default function ParallaxCard({
     const card = cardRef.current;
     if (!card) return;
 
-    const handleMove = (e) => {
+    const move = (e) => {
       const rect = card.getBoundingClientRect();
-
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2;
 
       const dx = (e.clientX - cx) / (rect.width / 2);
       const dy = (e.clientY - cy) / (rect.height / 2);
 
-      // tilt
-      const tiltX = dy * -10;
-      const tiltY = dx * 10;
+      card.style.transform =
+        `perspective(900px) rotateX(${dy * -10}deg) rotateY(${dx * 10}deg) scale(1.03)`;
 
-      card.style.transform = `perspective(900px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) scale(1.02)`;
-
-      // glow tracking
+      // speed-based glow
       const now = performance.now();
       const dt = Math.max(16, now - lastPos.current.t);
-
       const vx = (e.clientX - lastPos.current.x) / dt;
       const vy = (e.clientY - lastPos.current.y) / dt;
-      const speed = Math.min(1.2, Math.sqrt(vx * vx + vy * vy) * 12);
+      const speed = Math.min(1.2, Math.sqrt(vx * vx + vy * vy) * 14);
 
-      // CSS variables
       card.style.setProperty("--mx", `${e.clientX - rect.left}px`);
       card.style.setProperty("--my", `${e.clientY - rect.top}px`);
       card.style.setProperty("--glow", 0.15 + speed * 0.6);
@@ -43,33 +34,33 @@ export default function ParallaxCard({
       lastPos.current = { x: e.clientX, y: e.clientY, t: now };
     };
 
-    const handleLeave = () => {
-      card.style.transform = `perspective(900px) rotateX(0deg) rotateY(0deg) scale(1)`;
+    const leave = () => {
+      card.style.transform = `perspective(900px) rotateX(0) rotateY(0) scale(1)`;
       card.style.setProperty("--glow", 0);
       card.style.setProperty("--mx", `-9999px`);
       card.style.setProperty("--my", `-9999px`);
     };
 
-    card.addEventListener("mousemove", handleMove, { passive: true });
-    card.addEventListener("mouseleave", handleLeave);
+    card.addEventListener("mousemove", move);
+    card.addEventListener("mouseleave", leave);
 
     return () => {
-      card.removeEventListener("mousemove", handleMove);
-      card.removeEventListener("mouseleave", handleLeave);
+      card.removeEventListener("mousemove", move);
+      card.removeEventListener("mouseleave", leave);
     };
-  }, [depth]);
+  }, []);
 
   return (
     <div
       ref={cardRef}
-      className={`relative overflow-hidden rounded-2xl parallax-surface ${className}`}
+      className={`relative rounded-2xl parallax-wrapper ${className}`}
       style={{
         "--mx": "-9999px",
         "--my": "-9999px",
         "--glow": 0,
       }}
     >
-      {/* neon glow */}
+      {/* neon glow only */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -81,12 +72,10 @@ export default function ParallaxCard({
             )`,
           filter: "blur(40px)",
         }}
-      ></div>
+      />
 
-      {/* soft glass */}
-      <div className="relative z-10 backdrop-blur-xl bg-white/10 border border-white/20 p-6 rounded-2xl shadow-xl">
-        {children}
-      </div>
+      {/* children (GlassCard goes inside here) */}
+      <div className="relative z-10">{children}</div>
     </div>
   );
 }

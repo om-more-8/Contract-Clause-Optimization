@@ -9,25 +9,39 @@ export default function Navbar() {
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
 
+  // 👇 FIXED — logout function
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);      
+    navigate("/login");
+  };
+
+  // Keep navbar live-updated when user logs in/out
   useEffect(() => {
+    // Load current user
     supabase.auth.getUser().then(({ data }) => {
       setUser(data?.user || null);
     });
-  }, []);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/login");
-  };
+    // Subscribe to auth changes
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
 
   return (
     <motion.nav
       initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45 }}
+      transition={{ duration: 0.4 }}
       className="backdrop-blur-lg bg-white/40 shadow-md fixed top-0 left-0 w-full z-50"
     >
       <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-3">
+
         {/* Logo */}
         <Link
           to="/"
@@ -36,35 +50,29 @@ export default function Navbar() {
           CogniClause
         </Link>
 
-        {/* Right Section */}
+        {/* Right side buttons */}
         <div className="flex items-center gap-6">
 
-          {/* Links */}
           <Link to="/" className="flex items-center gap-1 hover:text-blue-600 transition">
             <Home size={18} /> Home
           </Link>
 
-          <Link
-            to="/dashboard"
-            className="flex items-center gap-1 hover:text-blue-600 transition"
-          >
+          <Link to="/dashboard" className="flex items-center gap-1 hover:text-blue-600 transition">
             <FileText size={18} /> Dashboard
           </Link>
 
-          <Link
-            to="/history"
-            className="flex items-center gap-1 hover:text-blue-600 transition"
-          >
+          <Link to="/history" className="flex items-center gap-1 hover:text-blue-600 transition">
             <Clock size={18} /> History
           </Link>
 
-          {/* User Avatar + Logout */}
+          {/* Logged-in view */}
           {user ? (
             <div className="flex items-center gap-3">
               <img
                 src={user.user_metadata?.avatar_url || "https://via.placeholder.com/40"}
                 className="w-9 h-9 rounded-full border"
               />
+
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-1 px-3 py-1.5 bg-red-500 text-white rounded-md hover:bg-red-600 transition"
