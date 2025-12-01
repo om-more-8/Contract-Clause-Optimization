@@ -10,7 +10,7 @@ export default function Home() {
 
    const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  
+  const [showPass, setShowPass] = useState(false);
 
   const handleEmailLogin = async () => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -96,26 +96,35 @@ active:scale-95"
                     className="w-full rounded-lg p-3 bg-white/10 border border-white/8 placeholder:text-slate-400"
                   />
 
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password"
-                  className="w-full rounded-lg p-3 bg-white/10 border border-white/8 placeholder:text-slate-400"
-                />
+                <div className="relative mb-6">
+          <input
+            type={showPass ? "text" : "password"}
+            placeholder="Password"
+            className="w-full rounded-lg p-3 bg-white/10 border border-white/8 placeholder:text-slate-400"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <span
+            className="absolute right-4 top-3 cursor-pointer select-none text-slate-700"
+            onClick={() => setShowPass(!showPass)}
+          >
+            {showPass ? "Hide" : "Show"}
+          </span>
+        </div> 
+                
               </div>
 
               <div className="flex gap-3">
                 <button
                     onClick={handleEmailLogin}
-                    className="glass-card flex-1 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 hover:text-white text-black rounded-lg"
+                    className="glass-card flex-1 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 hover:text-white text-gray-700 rounded-lg"
                   >
                     Sign in
                   </button>
 
                 <button
                   onClick={() => navigate("/register")}
-                  className="glass-card  bg-indigo-500 hover:bg-indigo-600 hover:text-white text-black px-4 py-2 border rounded-lg"
+                  className="glass-card  bg-indigo-500 hover:bg-indigo-600 hover:text-white text-gray-700 px-4 py-2 border rounded-lg"
                 >
                   Register
                 </button>
@@ -135,6 +144,7 @@ active:scale-95"
                 </button>
               </div>
             </div>
+
           </GlassCard>
         </aside>
       </div>
