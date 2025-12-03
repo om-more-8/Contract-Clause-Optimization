@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
 import GlassCard from "./GlassCard";
 import ParallaxCard from "../components/ParallaxCard";
-
+import rocket from "../assets/rocket.svg";
 /**
  * ContractEvaluator.jsx (fixed)
  * - Avoids useSupabaseClient / useUser imports (prevents bundler errors if package versions mismatch)
@@ -271,9 +271,14 @@ const handleGlowMove = (e) => {
 
   return (
     <div className="max-w-5xl mx-auto p-6">
-      <motion.h2 initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-3xl font-extrabold from-indigo-500 to-pink-500 bg-clip-text text-transparent bg-gradient-to-r">
-        🚀 Contract Risk Analyzer
-      </motion.h2>
+      <motion.h2
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  className="text-3xl font-extrabold bg-gradient-to-r from-indigo-500 to-pink-500 bg-clip-text text-transparent flex items-center gap-2"
+>
+  <img src={rocket} alt="rocket icon" className="mt-2 ml-2 w-12 h-16" />
+  Contract Risk Analyzer
+</motion.h2>
       
       <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
         

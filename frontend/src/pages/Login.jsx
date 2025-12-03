@@ -31,12 +31,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center px-6"
-      style={{
-        background:
-          "linear-gradient(135deg, #e8f1ff 0%, #d5e8ff 20%, #c0dcff 40%, #8cc3ff 60%, #5495ff 80%, #1e73ff 100%)",
-      }}
-    >
+    <div className="min-h-screen w-full flex items-center justify-center px-6">
       {/* --- login card --- */}
       <div
         className="w-full max-w-xl p-10 rounded-3xl"
@@ -90,7 +85,7 @@ export default function Login() {
         {/* Google OAuth */}
         <button
           onClick={signInWithGoogle}
-          className="w-full py-3 rounded-lg border border-blue-300 bg-white/40 text-blue-700 font-semibold hover:bg-blue-100/50 transition-all duration-300 flex items-center justify-center gap-2"
+          className="glass-card w-full py-3 rounded-lg border border-blue-300 bg-white/40 text-blue-700 font-semibold hover:bg-blue-100/50 transition-all duration-300 flex items-center justify-center gap-2"
         >
           <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" />
           Continue with Google
