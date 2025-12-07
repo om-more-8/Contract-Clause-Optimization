@@ -334,3 +334,98 @@ body {
   z-index: 10;
 }
 
+/* =======================
+   Dashboard / global tweaks
+   ======================= */
+
+.particles-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;            /* keep particle canvas behind UI */
+  pointer-events: none;
+}
+
+.app-root, .page-container {
+  position: relative;
+  z-index: 1;            /* content above particles */
+}
+
+/* Solid white card base used everywhere */
+.solid-card {
+  background: #ffffff !important; /* FORCE opaque white */
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(18,35,61,0.08);
+  padding: 22px;
+  color: #111827;
+  position: relative;   /* z-index below we set */
+  z-index: 2;           /* ensure on top of particles */
+  transition: transform .18s cubic-bezier(.2,.9,.3,1), box-shadow .18s;
+  overflow: hidden;
+}
+
+/* little hover pop - similar to glass card pop but with solid bg */
+.solid-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 18px 40px rgba(18,35,61,0.12);
+}
+
+/* small utility for the metric tiles */
+.metric-tile {
+  width: 220px;
+  padding: 18px;
+  text-align: left;
+  display: inline-block;
+  margin-right: 18px;
+}
+
+/* Chart containers */
+.chart-wrap {
+  height: 320px;
+}
+
+/* Gauge wrapper center */
+.gauge-center {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  height: 320px;
+}
+
+/* Pie legend style */
+.pie-legend {
+  margin-top: 12px;
+  text-align:center;
+}
+
+/* Heatmap */
+.heatmap-svg {
+  width: 100%;
+  height: 260px;
+  display: block;
+}
+.heatmap-legend {
+  margin-top: 10px;
+  font-size: 14px;
+  color: #374151;
+}
+
+/* make export/share/request buttons consistent */
+.action-buttons .btn {
+  margin-left: 12px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+/* prevent particle overlay inside card children */
+.solid-card * {
+  position: relative;
+  z-index: 3;
+}
+
+/* small responsive tweaks */
+@media (max-width: 900px) {
+  .metric-tile { width: 48%; margin-bottom: 12px; }
+  .chart-wrap { height: 280px; }
+  .gauge-center { height: 260px; }
+}
