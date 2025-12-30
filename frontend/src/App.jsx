@@ -8,6 +8,7 @@ import ContractEvaluator from "./components/ContractEvaluator";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Home from "./pages/Home";
 import ParticleBackground from "./components/ParticleBackground";
+import BackgroundLayer from "./components/BackgroundLayer";
 
 import useSupabaseSession from "./hooks/useSupabaseSession";  // ✅ NEW
 
@@ -16,6 +17,7 @@ export default function App() {
   const user = session?.user ?? null;
 
   return (
+    
     <div
       className="min-h-screen w-full"
       style={{
@@ -25,6 +27,7 @@ export default function App() {
         backgroundSize: "cover",
       }}
     >
+      <BackgroundLayer />
       <ParticleBackground
         colorPrimary="60,120,255"
         colorAccent="100,200,255"

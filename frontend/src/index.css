@@ -429,3 +429,10 @@ body {
   .chart-wrap { height: 280px; }
   .gauge-center { height: 260px; }
 }
+
+.card-solid {
+  background-color: #ffffff !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+  z-index: 2;
+}
