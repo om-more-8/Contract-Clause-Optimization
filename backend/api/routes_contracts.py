@@ -155,9 +155,14 @@ async def upload_contract(
     except Exception as e:
         print("Supabase insert failed (upload):", e)
 
+    result = evaluate_contract(text)
+
     return {
-        "success": True,
-        "file": file.filename,
-        "analysis": result
-    }
+        "overall_risk": result.get("overall_risk"),
+        "risk_level": result.get("risk_level"),
+        "risk_counts": result.get("risk_counts"),
+        "details": result.get("details"),
+        "summary": result.get("summary", {})
+}
+
 

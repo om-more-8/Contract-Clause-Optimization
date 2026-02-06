@@ -288,7 +288,7 @@ const handleGlowMove = (e) => {
     relative 
     w-full
     p-6 
-    rounded-2xl 
+    rounded-2xl   
     glass-card 
     glow-border 
     cursor-glow 
@@ -410,7 +410,7 @@ const handleGlowMove = (e) => {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="text-sm text-gray-500">Overall Risk</div>
-                  <div className="mt-2"><RiskBadge level={result?.risk_level ?? "Unknown"} /></div>
+                  <div className="mt-2"><RiskBadge level={result?.overall_risk ?? "Unknown"} /></div>
                 </div>
 
                 <div className="flex-1">
@@ -480,6 +480,37 @@ const handleGlowMove = (e) => {
             <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium">
               sim: {item.similarity_score?.toFixed(3)}
             </span>
+
+            {item.issue && (
+              <p className="text-sm text-gray-700 mt-1 pl-2">
+                <span className="font-semibold">Issue:</span> {item.issue}
+              </p>
+            )}
+
+            {/* ---------- OPTIMIZATION SUGGESTION ---------- */}
+            {item.suggested_optimization && (
+              <div
+                className={`
+                  mt-4 p-4 rounded-lg border-l-4 text-sm leading-relaxed
+                  ${
+                    item.risk_level === "High"
+                      ? "bg-red-50 border-red-500 text-red-800"
+                      : item.risk_level === "Medium"
+                      ? "bg-yellow-50 border-yellow-500 text-yellow-800"
+                      : "bg-green-50 border-green-500 text-green-800"
+                  }
+                `}
+              >
+                <div className="flex items-start gap-2">
+                  <span className="font-semibold">Suggested improvement:</span>
+                </div>
+
+                <p className="mt-1">
+                  {item.suggested_optimization}
+                </p>
+              </div>
+            )}
+
           </div>
 
         </div>

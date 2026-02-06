@@ -1,8 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api import routes_contracts, routes_health, routes_auth, routes_optimization
+from pydantic import BaseModel
+from services.clause_service import evaluate_contract
 
 app = FastAPI(title="CogniClause API")
+
+class EvaluateRequest(BaseModel):
+    contract_text: str
 
 # CORS - allow dev frontend
 app.add_middleware(
@@ -22,3 +27,7 @@ app.include_router(routes_optimization.router, prefix="/optimize", tags=["Optimi
 @app.get("/")
 def root():
     return {"message": "Welcome to CogniClause Backend"}
+
+@app.post("/contracts/evaluate")
+def evaluate_contract_api(payload: EvaluateRequest):
+    return evaluate_contract(payload.contract_text)

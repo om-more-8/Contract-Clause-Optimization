@@ -1,126 +1,190 @@
 # backend/services/clause_service.py
-import os
-import pickle
+
+from typing import Dict, List
 import numpy as np
-import torch
+
 from sentence_transformers import SentenceTransformer, util
 
-# ---------------------------
-# Load model + centroids once
-# ---------------------------
-MODEL_NAME = "nlpaueb/legal-bert-base-uncased"
-print("🔹 Loading LegalBERT model for evaluation...")
+
+# =========================
+# Model & Category Setup
+# =========================
+
+MODEL_NAME = "all-MiniLM-L6-v2"
 model = SentenceTransformer(MODEL_NAME)
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "../data")
-CENTROID_PATH = os.path.join(DATA_DIR, "cluster_centroids.pkl")
+CATEGORIES = [
+    "Intellectual Property",
+    "Liability",
+    "Payment",
+    "Termination",
+    "Confidentiality",
+    "Governing Law",
+    "General / Miscellaneous",
+]
 
-if not os.path.exists(CENTROID_PATH):
-    raise FileNotFoundError(f"Missing centroid file at {CENTROID_PATH}. Run utils/build_cluster_centroids.py first.")
+CATEGORY_RISK_MAP = {
+    "Intellectual Property": "Medium",
+    "Liability": "High",
+    "Payment": "Medium",
+    "Termination": "Medium",
+    "Confidentiality": "High",
+    "Governing Law": "Low",
+    "General / Miscellaneous": "Low",
+}
 
-with open(CENTROID_PATH, "rb") as f:
-    saved = pickle.load(f)
+SUGGESTIONS = {
+    "Intellectual Property": "Clearly allocate background vs foreground IP and license scope.",
+    "Liability": "Limit liability to direct damages only and cap total liability to an agreed threshold.",
+    "Payment": "Define payment schedule, invoicing process, penalties, and dispute resolution clearly.",
+    "Termination": "Clarify termination triggers, notice period, and post-termination obligations.",
+    "Confidentiality": "Specify scope, duration, and exceptions to confidentiality obligations.",
+    "Governing Law": "Explicitly define governing law and jurisdiction.",
+    "General / Miscellaneous": "Revise for clarity and remove ambiguity or redundant language.",
+}
 
-centroids_dict = saved.get("centroids", {})
-cluster_labels = saved.get("labels", {})
+ISSUES = {
+    "Intellectual Property": "Unclear IP ownership",
+    "Liability": "Unlimited or unclear liability exposure",
+    "Payment": "Vague payment terms",
+    "Termination": "Ambiguous termination conditions",
+    "Confidentiality": "Weak confidentiality protections",
+    "Governing Law": "Jurisdiction not clearly specified",
+    "General / Miscellaneous": "Clause may benefit from improved clarity",
+}
 
-# Convert centroids dict to matrix + index map for fast ops
-centroid_keys = list(centroids_dict.keys())
-if not centroid_keys:
-    raise Exception("No centroids found in centroid file.")
 
-centroid_matrix = np.stack([centroids_dict[k] for k in centroid_keys])
-# convert to sentence-transformers tensor at query-time
+# =========================
+# Helper Functions
+# =========================
 
-# risk mapping thresholds — tweakable
-def similarity_to_risk_level(sim):
-    # sim is between -1 and 1, typical 0..1 here
-    if sim >= 0.85:
-        return "Low"
-    if sim >= 0.60:
-        return "Medium"
-    return "High"
-
-def average_risk_to_overall(avg):
-    # avg typically between 1..3
-    if avg <= 1.5:
-        return "Low"
-    if avg <= 2.3:
-        return "Medium"
-    return "High"
-
-# ---------------------------
-# Main function — input is text string
-# ---------------------------
-def evaluate_contract(text: str):
+def split_into_clauses(text: str) -> List[str]:
     """
-    Input:
-      text (str): full contract text
-    Returns:
-      dict: {
-        average_risk_score,
-        risk_level,            # "Low"/"Medium"/"High"
-        clause_count,
-        low_count, medium_count, high_count,
-        categories_summary: { category_name: count, ... },
-        details: [ {sentence, matched_category, cluster_id, similarity_score, risk_level}, ... ]
-      }
+    Splits contract text into clauses/sentences.
     """
-    if not text or not isinstance(text, str) or len(text.strip()) < 5:
-        return {"error": "No valid text provided."}
+    if not text:
+        return []
 
-    # Split into sentences (simple split; you can replace with better sentence splitter)
-    sentences = [s.strip() for s in text.split(".") if len(s.strip()) > 8]
-    if not sentences:
-        return {"error": "No valid sentences extracted."}
+    parts = [p.strip() for p in text.replace("\n", " ").split(".") if len(p.strip()) > 25]
+    return parts
 
-    # Embed sentences
-    input_emb = model.encode(sentences, convert_to_tensor=True)
 
-    # Convert centroid matrix to torch tensor once
-    centroid_tensor = torch.tensor(centroid_matrix, dtype=torch.float32)
+def normalize_risk(risk: str) -> str:
+    """
+    Ensures risk level is always High / Medium / Low
+    """
+    if risk in ("High", "Medium", "Low"):
+        return risk
+    return "Low"
 
-    details = []
-    total_score = 0.0
-    counts = {"Low": 0, "Medium": 0, "High": 0}
-    category_summary = {}
 
-    for i, sent in enumerate(sentences):
-        # compute cosine with all centroids
-        cos_scores = util.cos_sim(input_emb[i], centroid_tensor)  # returns 1 x N
-        # convert to numpy
-        scores = cos_scores.cpu().numpy().flatten()
-        best_idx = int(scores.argmax())
-        best_sim = float(scores[best_idx])
-        best_cid = centroid_keys[best_idx]
-        matched_label = cluster_labels.get(str(best_cid), "General / Miscellaneous")
+def compute_overall_risk(risk_counts: dict) -> str:
+    high = risk_counts.get("High", 0)
+    medium = risk_counts.get("Medium", 0)
+    low = risk_counts.get("Low", 0)
 
-        # map similarity to risk
-        clause_risk_level = similarity_to_risk_level(best_sim)
-        total_score += {"Low": 1, "Medium": 2, "High": 3}[clause_risk_level]
+    total = high + medium + low
+    if total == 0:
+        return "Unknown"
 
-        counts[clause_risk_level] += 1
-        category_summary[matched_label] = category_summary.get(matched_label, 0) + 1
+    score = (3 * high + 2 * medium + 1 * low) / total
 
-        details.append({
-            "sentence": sent,
-            "matched_category": matched_label,
-            "cluster_id": best_cid,
-            "similarity_score": round(best_sim, 3),
-            "risk_level": clause_risk_level
-        })
+    if score >= 2.3:
+        return "High"
+    elif score >= 1.6:
+        return "Medium"
+    else:
+        return "Low"
 
-    clause_count = len(sentences)
-    avg = round(total_score / clause_count, 2)
-    overall = average_risk_to_overall(avg)
+
+
+# =========================
+# Core Clause Analysis
+# =========================
+
+def analyze_clause(clause: str, category_embeddings, clause_embedding) -> Dict:
+    """
+    Analyze a single clause and return classification & risk.
+    """
+
+    similarities = util.cos_sim(clause_embedding, category_embeddings)[0]
+    best_idx = int(torch_argmax(similarities))
+    similarity_score = float(similarities[best_idx])
+
+    matched_category = CATEGORIES[best_idx]
+    risk_level = normalize_risk(CATEGORY_RISK_MAP.get(matched_category, "Low"))
 
     return {
-        "average_risk_score": avg,
-        "risk_level": overall,
-        "clause_count": clause_count,
-        "low_count": counts["Low"],
-        "medium_count": counts["Medium"],
-        "high_count": counts["High"],
-        "categories_summary": category_summary,
-        "details": details,
+        "sentence": clause,
+        "matched_category": matched_category,
+        "cluster_id": best_idx,
+        "similarity_score": round(similarity_score, 3),
+        "risk_level": risk_level,
+        "issue": ISSUES.get(matched_category, ""),
+        "suggested_optimization": SUGGESTIONS.get(matched_category, ""),
+    }
+
+
+def torch_argmax(tensor):
+    """
+    Safe argmax without torch import issues.
+    """
+    return int(np.argmax(tensor.cpu().numpy()))
+
+
+# =========================
+# Main Public API Function
+# =========================
+
+def evaluate_contract(contract_text: str) -> Dict:
+    """
+    MAIN ENTRY POINT
+    Used by both text input & file input.
+    """
+
+    clauses = split_into_clauses(contract_text)
+
+    if not clauses:
+        return {
+            "overall_risk": "Unknown",
+            "risk_counts": {"High": 0, "Medium": 0, "Low": 0},
+            "clause_count": 0,
+            "details": [],
+        }
+
+    clause_embeddings = model.encode(
+        clauses,
+        convert_to_tensor=True,
+        normalize_embeddings=True,
+    )
+
+    category_embeddings = model.encode(
+        CATEGORIES,
+        convert_to_tensor=True,
+        normalize_embeddings=True,
+    )
+
+    details = []
+    risk_counts = {"High": 0, "Medium": 0, "Low": 0}
+
+    for idx, clause in enumerate(clauses):
+        result = analyze_clause(
+            clause=clause,
+            category_embeddings=category_embeddings,
+            clause_embedding=clause_embeddings[idx],
+        )
+
+        risk = normalize_risk(result["risk_level"])
+        risk_counts[risk] += 1
+        details.append(result)
+
+    overall_risk = compute_overall_risk(risk_counts)        
+
+    return {   
+        "details": details, 
+        "risk_level": overall_risk,    
+        "overall_risk": overall_risk,
+        "risk_counts": risk_counts,
+        "clause_count": len(details),
+        
     }

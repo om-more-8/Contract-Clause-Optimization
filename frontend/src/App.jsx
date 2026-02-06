@@ -27,7 +27,7 @@ export default function App() {
         backgroundSize: "cover",
       }}
     >
-      <BackgroundLayer />
+    <BackgroundLayer />
       <ParticleBackground
         colorPrimary="60,120,255"
         colorAccent="100,200,255"
@@ -60,7 +60,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
+          
           <Route
             path="/history"
             element={

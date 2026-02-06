@@ -12,6 +12,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import BackgroundLayer from "../components/BackgroundLayer";
 
 import * as d3 from "d3";
 
@@ -79,7 +80,7 @@ export default function Dashboard() {
   // ============================
   const Card = ({ children, className }) => (
     <div
-      className={`bg-white shadow-lg rounded-2xl p-6 ${className}`}
+      className={`card-solid bg-white shadow-lg rounded-2xl p-6 ${className}`}
       style={{ backdropFilter: "none" }}
     >
       {children}
@@ -142,6 +143,7 @@ export default function Dashboard() {
   };
 
   return (
+    
     <div className="p-6 max-w-[1400px] mx-auto">
 
       {/* ======================== */}
