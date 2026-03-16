@@ -4,6 +4,7 @@ from typing import Dict, List
 import numpy as np
 
 from sentence_transformers import SentenceTransformer, util
+from services.suggestion_service import generate_clause_suggestion
 
 
 # =========================
@@ -113,16 +114,22 @@ def analyze_clause(clause: str, category_embeddings, clause_embedding) -> Dict:
 
     matched_category = CATEGORIES[best_idx]
     risk_level = normalize_risk(CATEGORY_RISK_MAP.get(matched_category, "Low"))
+    ai_suggestion = generate_clause_suggestion(
+        clause=clause,
+        category=matched_category,
+        risk_level=risk_level
+    )
 
     return {
-        "sentence": clause,
-        "matched_category": matched_category,
-        "cluster_id": best_idx,
-        "similarity_score": round(similarity_score, 3),
-        "risk_level": risk_level,
-        "issue": ISSUES.get(matched_category, ""),
-        "suggested_optimization": SUGGESTIONS.get(matched_category, ""),
-    }
+    "sentence": clause,
+    "matched_category": matched_category,
+    "cluster_id": best_idx,
+    "similarity_score": round(similarity_score, 3),
+    "risk_level": risk_level,
+    "issue": ISSUES.get(matched_category, ""),
+    "suggested_optimization": SUGGESTIONS.get(matched_category, ""),
+    "ai_optimized_clause": ai_suggestion
+}
 
 
 def torch_argmax(tensor):
@@ -186,5 +193,9 @@ def evaluate_contract(contract_text: str) -> Dict:
         "overall_risk": overall_risk,
         "risk_counts": risk_counts,
         "clause_count": len(details),
+        "average_risk_score": round(
+            (3 * risk_counts["High"] + 2 * risk_counts["Medium"] + 1 * risk_counts["Low"]) / len(details), 2
+        ) if details else 0,
+        "categories_summary": {cat: {"count": sum(1 for d in details if d["matched_category"] == cat), "risk_levels": [d["risk_level"] for d in details if d["matched_category"] == cat]} for cat in CATEGORIES}
         
     }

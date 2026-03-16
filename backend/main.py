@@ -1,8 +1,12 @@
+from dotenv import load_dotenv
+import os
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api import routes_contracts, routes_health, routes_auth, routes_optimization
 from pydantic import BaseModel
 from services.clause_service import evaluate_contract
+
 
 app = FastAPI(title="CogniClause API")
 

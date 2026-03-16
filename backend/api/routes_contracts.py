@@ -91,11 +91,11 @@ async def evaluate(request: Request):
                 "text": text,
                 "risk_score": avg_score,
                 "level": level,
-                "categories_summary": json.dumps(categories_summary),
-                "details": json.dumps(result.get("details", [])),
+                "categories_summary": result.get("categories_summary"),
+                "details": result.get("details"),
                 
                 # user_id may be null if we couldn't extract it
-                "user_id": user_id,
+                "user_id": user_id
             }
 
             # Remove None values (but keep empty dicts as JSON strings if present)
@@ -147,7 +147,7 @@ async def upload_contract(
             "level": result.get("risk_level"),
             "user_id": user_id,
             "categories_summary": result.get("categories_summary"),
-            "details": result.get("details"),
+            "details": result.get("details")
         }
         payload = {k: v for k, v in payload.items() if v is not None}
 

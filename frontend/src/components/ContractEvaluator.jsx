@@ -51,12 +51,16 @@ function LoadingBar({ active }) {
 }
 
 export default function ContractEvaluator() {
+
   const [text, setText] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const [error, setError] = useState(null);
   const [fileName, setFileName] = useState(null);
+  const [activeMode, setActiveMode] = useState(null); 
+// "text" | "file" | null
+
   const dropRef = useRef();
 
   const avgToLabel = (avg) => {
@@ -78,39 +82,40 @@ export default function ContractEvaluator() {
   };
 
   const handleTextEvaluate = async (e) => {
-    e?.preventDefault();
-    setError(null);
-    if (!text || !text.trim()) {
-      setError("Please paste some contract text or upload a PDF.");
-      return;
-    }
-    setLoading(true);
-    setResult(null);
-    try {
-      const user_id = await getCurrentUserId();
-      const res = await fetch("http://127.0.0.1:8000/contracts/evaluate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, user_id, name: "manual evaluation" }),
-      });
+  e?.preventDefault();
+  setError(null);
 
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Server ${res.status}: ${errText}`);
-      }
+  if (!text || !text.trim()) {
+    setError("Please paste some contract text.");
+    return;
+  }
 
-      const data = await res.json();
-      if (data && data.average_risk_score !== undefined && !data.risk_level) {
-        data.risk_level = avgToLabel(data.average_risk_score);
-      }
-      setResult(data);
-    } catch (err) {
-      console.error(err);
-      setError(String(err.message || err));
-    } finally {
-      setLoading(false);
+  setActiveMode("text");
+  setLoading(true);
+  setResult(null);
+
+  try {
+    const user_id = await getCurrentUserId();
+    const res = await fetch("http://127.0.0.1:8000/contracts/evaluate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, user_id, name: "manual evaluation" }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Server ${res.status}: ${errText}`);
     }
-  };
+
+    const data = await res.json();
+    setResult(data);
+  } catch (err) {
+    setError(String(err.message || err));
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   // drag & drop handlers
   const onDrop = useCallback(async (ev) => {
@@ -133,54 +138,51 @@ export default function ContractEvaluator() {
   };
 
   const uploadFile = async (file) => {
-    setError(null);
-    setFileLoading(true);
-    setFileName(file.name);
-    setResult(null);
-    try {
-      const user_id = await getCurrentUserId();
-      const form = new FormData();
-      form.append("file", file);
-      if (user_id) form.append("user_id", user_id);
-      form.append("name", file.name || "uploaded");
+  setError(null);
+  setActiveMode("file");
+  setFileLoading(true);
+  setFileName(file.name);
+  setResult(null);
 
-      const res = await fetch("http://127.0.0.1:8000/contracts/upload", {
-        method: "POST",
-        body: form,
-      });
+  try {
+    const user_id = await getCurrentUserId();
+    const form = new FormData();
+    form.append("file", file);
+    if (user_id) form.append("user_id", user_id);
+    form.append("name", file.name || "uploaded");
 
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(`Upload failed ${res.status}: ${txt}`);
-      }
+    const res = await fetch("http://127.0.0.1:8000/contracts/upload", {
+      method: "POST",
+      body: form,
+    });
 
-      const data = await res.json();
-      if (data.analysis && !data.average_risk_score) {
-        const drafted = {
-          average_risk_score: data.analysis.average_risk_score || null,
-          risk_level: data.analysis.risk_level || avgToLabel(data.analysis.average_risk_score || 0),
-          details: data.analysis.details || [],
-        };
-        setResult(drafted);
-      } else {
-        if (data && data.average_risk_score !== undefined && !data.risk_level) {
-          data.risk_level = avgToLabel(data.average_risk_score);
-        }
-        setResult(data);
-      }
-    } catch (err) {
-      console.error(err);
-      setError(String(err.message || err));
-    } finally {
-      setFileLoading(false);
-      if (dropRef.current) dropRef.current.classList.remove("ring-4", "ring-indigo-200");
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`Upload failed ${res.status}: ${txt}`);
     }
-  };
+
+    const data = await res.json();
+    setResult(data.analysis ?? data);
+  } catch (err) {
+    setError(String(err.message || err));
+  } finally {
+    setFileLoading(false);
+  }
+};
+
 
   const handleFileInput = (ev) => {
     const f = ev.target.files?.[0];
     if (f) uploadFile(f);
   };
+
+  const clearFile = () => {
+  setFileName(null);
+  setResult(null);
+  setActiveMode(null);
+  if (dropRef.current) dropRef.current.value = "";
+};
+
 
   const SummaryBlock = ({ data }) => {
     if (!data) {
@@ -332,11 +334,23 @@ const handleGlowMove = (e) => {
       Clear
     </button>
 
-    <div className="ml-auto flex items-center gap-3">
-      <div className="text-sm text-gray-600">Result:</div>
-      <RiskBadge level={result?.risk_level ?? "Unknown"} />
-    </div>
+    {loading && (
+      <span className="ml-3 text-sm text-indigo-600 animate-pulse">
+        Evaluating...
+      </span>
+    )}
+
+
+    {activeMode === "text" && result && (
+    <span className="ml-3 px-4 py-1 rounded-full text-sm font-semibold
+      bg-green-500 text-white">
+      {result.risk_level} Risk
+    </span>
+)}
+    
+
   </div>
+  <LoadingBar active={loading} />
 </ParallaxCard>
 
 
@@ -377,20 +391,49 @@ const handleGlowMove = (e) => {
   </motion.div>
 
   <div className="mt-4 flex justify-between items-center">
-    <motion.button
-      whileHover={{ scale: 1.03 }}
-      whileTap={{ scale: 0.98 }}
-      className={`px-3 py-2 rounded text-white ${
-        fileLoading ? "bg-indigo-400" : "bg-indigo-600 hover:bg-indigo-700"
-      }`}
-    >
-      {fileLoading ? "Uploading..." : "Upload & Evaluate"}
-    </motion.button>
+  {/* LEFT SIDE: Clear button (file mode only) */}
+  <div className="flex items-center gap-3">
+    {fileName && !fileLoading && (
+      <motion.button
+        whileHover={{ scale: 1.03 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => {
+          setFileName(null);
+          setResult(null);
+          setError(null);
+          if (dropRef.current) {
+            dropRef.current.value = "";
+          }
+        }}
+        className="px-3 py-2 rounded text-gray-800 bg-white hover:bg-gray-600"
+      >
+        Clear
+      </motion.button>
+    )}
 
-    <div className="text-sm text-gray-600">
-      {fileName ?? "No file selected"}
-    </div>
+    {/* Risk badge (file mode only) */}
+    {activeMode === "file" && result && (
+      <span
+        className={`px-4 py-1 rounded-full text-sm font-semibold text-white ${
+          result.risk_level === "High"
+            ? "bg-red-500"
+            : result.risk_level === "Medium"
+            ? "bg-yellow-500"
+            : "bg-green-500"
+        }`}
+      >
+        {result.risk_level} Risk
+      </span>
+    )}
   </div>
+
+  {/* RIGHT SIDE: filename */}
+  <div className="text-sm text-gray-600">
+    {fileName ?? "No file selected"}
+  </div>
+</div>
+
+      
 
   <LoadingBar active={fileLoading} />
 </ParallaxCard>
